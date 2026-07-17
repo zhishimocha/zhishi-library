@@ -59,7 +59,7 @@ function cover(book, compact = false) {
   const className = `cover cover-${book.color || "rose"} ${compact ? "cover-compact" : ""}`;
   const initials = escapeHtml(book.title.slice(0, 4));
   if (book.coverImage) return `<div class="${className} photo-cover"><img src="${book.coverImage}" alt="${escapeHtml(book.title)} 封面"></div>`;
-  if (book.color === "image") return `<div class="${className} photo-cover"><img src="assets/library-cover.png" alt="${escapeHtml(book.title)} 封面"></div>`;
+  if (book.color === "image") return `<div class="cover cover-rose"><span>${initials}</span><small>${escapeHtml(book.author || "")}</small></div>`;
   return `<div class="${className}"><span>${initials}</span><small>${escapeHtml(book.author || "")}</small></div>`;
 }
 
