@@ -141,6 +141,22 @@ button {
   padding: 0;
 }
 
+.icon-button.is-active {
+  border-color: var(--accent);
+  background: var(--paper-2);
+  color: var(--accent);
+}
+
+.danger-icon {
+  color: var(--danger);
+}
+
+.danger-icon.is-active {
+  border-color: color-mix(in srgb, var(--danger) 48%, var(--line));
+  background: color-mix(in srgb, var(--danger) 10%, var(--paper));
+  color: var(--danger);
+}
+
 .primary-button {
   background: var(--accent);
   color: white;
@@ -235,6 +251,13 @@ h1 {
   align-items: center;
   margin: 18px 0;
   flex-wrap: wrap;
+}
+
+.home-delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 18px 0 14px;
 }
 
 .sorts {
@@ -358,6 +381,26 @@ select {
   background: var(--paper-2);
 }
 
+.selectable-book {
+  position: relative;
+  cursor: default;
+}
+
+.book-row.selectable-book .selection-control {
+  justify-self: end;
+}
+
+.book-card.selectable-book .selection-control,
+.mini-card.selectable-book .selection-control {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+}
+
 .cover {
   width: 44px;
   aspect-ratio: 2 / 3;
@@ -474,6 +517,7 @@ select {
   gap: 12px;
 }
 
+.first-meet-card,
 .daily-card,
 .note-card,
 .wish-card,
@@ -482,6 +526,11 @@ select {
   border-radius: var(--radius);
   padding: 14px;
   background: color-mix(in srgb, var(--paper) 88%, var(--paper-2));
+}
+
+.first-meet-card {
+  display: grid;
+  gap: 12px;
 }
 
 .daily-card {

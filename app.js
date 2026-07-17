@@ -165,16 +165,48 @@ function statusLabel(status) {
   return ({ reading: "阅读中", pending: "待整理", organized: "已整理" })[status] || status;
 }
 
-function bookRow(book) {
+function selectionControl(kind, id, label) {
+  return `<label class="selection-control" title="${escapeHtml(label)}"><input type="checkbox" data-select-item="${escapeHtml(kind)}" data-item-id="${escapeHtml(id)}"><span class="sr-only">${escapeHtml(label)}</span></label>`;
+}
+
+function bookRow(book, selectable = false) {
+  const content = `${cover(book, true)}
+    <span class="book-row-copy"><strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author || "未署名")} · ${escapeHtml(book.category || "未分类")}</small></span>`;
+  if (selectable) {
+    return `<article class="book-row selectable-book">
+    ${content}
+    ${selectionControl("book", book.id, "选择这本书")}
+  </article>`;
+  }
   return `<button class="book-row" data-book="${book.id}">
-    ${cover(book, true)}
-    <span class="book-row-copy"><strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author || "未署名")} · ${escapeHtml(book.category || "未分类")}</small></span>
+    ${content}
     <span class="row-meta">${formatDate(book.lastRead)}</span>
   </button>`;
 }
 
-function selectionControl(kind, id, label) {
-  return `<label class="selection-control" title="${escapeHtml(label)}"><input type="checkbox" data-select-item="${escapeHtml(kind)}" data-item-id="${escapeHtml(id)}"><span class="sr-only">${escapeHtml(label)}</span></label>`;
+function renderCoverBookCard(book, selectable = false) {
+  const content = `${cover(book)}<strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author || "未署名")}</small>`;
+  if (selectable) return `<article class="book-card selectable-book">${selectionControl("book", book.id, "选择这本书")}${content}</article>`;
+  return `<button class="book-card" data-book="${book.id}">${content}</button>`;
+}
+
+function renderMiniBookCard(book, selectable = false) {
+  const content = `${cover(book, true)}<small>${escapeHtml(book.title)}</small>`;
+  if (selectable) return `<article class="mini-card selectable-book">${selectionControl("book", book.id, "选择这本书")}${content}</article>`;
+  return `<button class="mini-card" data-book="${book.id}">${content}</button>`;
+}
+
+function renderHomeDeleteActions() {
+  if (state.route.deleteMode !== "book") return "";
+  return `<section class="home-delete-actions"><button class="quiet-button" data-action="cancel-delete-mode">取消</button><button class="quiet-button danger-button" data-action="delete-selected-books" data-bulk-delete="book" disabled>删除所选</button></section>`;
+}
+
+function bookDeleteActive() {
+  return state.route.page === "home" && state.route.deleteMode === "book";
+}
+
+function renderFirstMeetCard(book) {
+  return `<article class="first-meet-card field-grid"><div><span>为什么开始看</span><p>${escapeHtml(book.reason || "还没有写下这个答案。")}</p></div><div><span>第一印象</span><p>${escapeHtml(book.firstImpression || "还没有写下第一印象。")}</p></div></article>`;
 }
 
 function renderDailyCard(card, selectable = false) {
@@ -195,11 +227,13 @@ function renderNoteCard(note, selectable = false) {
 
 function renderAppShell(content, options = {}) {
   const { page = "home", title = "我的图书馆", subtitle = "让每本书留下它在你生命里的位置" } = options;
+  const homeDeleteActive = page === "home" && state.route.deleteMode === "book";
+  const homeDeleteButton = page === "home" ? `<button class="icon-button danger-icon ${homeDeleteActive ? "is-active" : ""}" data-action="${homeDeleteActive ? "cancel-delete-mode" : "enter-delete-mode"}" ${homeDeleteActive ? "" : 'data-delete-mode="book"'} title="${homeDeleteActive ? "退出删除" : "删除书籍"}" aria-label="${homeDeleteActive ? "退出删除" : "删除书籍"}">⌫</button>` : "";
   return `<main class="app-shell">
     <header class="topbar">
       <form class="search" data-form="search"><span aria-hidden="true">⌕</span><input name="query" value="${escapeHtml(state.route.query || "")}" placeholder="搜索书、想法、标签或整理内容" autocomplete="off"></form>
     </header>
-    <section class="page-heading"><div><p class="eyebrow">${page === "book" ? "BOOK PAGE" : page === "wishes" ? "WISH POOL" : "PRIVATE COLLECTION"}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div><div class="heading-tools">${page !== "book" ? `<span class="collection-count">${state.books.length} 本已入馆</span>` : ""}<nav class="actions" aria-label="图书馆工具"><button class="icon-button" data-action="theme" title="换肤" aria-label="换肤">◐</button><button class="icon-button ${page === "wishes" ? "is-active" : ""}" data-action="wishes" title="愿望池" aria-label="愿望池">♡</button><button class="icon-button ${page === "home" ? "is-active" : ""}" data-action="view-menu" title="切换视图" aria-label="切换视图">▦</button></nav></div></section>
+    <section class="page-heading"><div><p class="eyebrow">${page === "book" ? "BOOK PAGE" : page === "wishes" ? "WISH POOL" : "PRIVATE COLLECTION"}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div><div class="heading-tools">${page !== "book" ? `<span class="collection-count">${state.books.length} 本已入馆</span>` : ""}<nav class="actions" aria-label="图书馆工具"><button class="icon-button" data-action="theme" title="换肤" aria-label="换肤">◐</button><button class="icon-button ${page === "wishes" ? "is-active" : ""}" data-action="wishes" title="愿望池" aria-label="愿望池">♡</button>${homeDeleteButton}<button class="icon-button ${page === "home" ? "is-active" : ""}" data-action="view-menu" title="切换视图" aria-label="切换视图">▦</button></nav></div></section>
     ${content}
     <button class="fab" data-action="open-add" aria-label="新增内容" title="新增">+</button>
     <div id="modal-root"></div>
@@ -209,6 +243,7 @@ function renderAppShell(content, options = {}) {
 function renderHome() {
   const view = state.route.view;
   let content = `<section class="view-tabs"><button class="${view === "category" ? "active" : ""}" data-action="view" data-view="category">分类</button><button class="${view === "cover" ? "active" : ""}" data-action="view" data-view="cover">封面</button><button class="${view === "status" ? "active" : ""}" data-action="view" data-view="status">阅读状态</button></section>`;
+  content += renderHomeDeleteActions();
   if (view === "category") content += renderCategoryView();
   if (view === "cover") content += renderCoverView();
   if (view === "status") content += renderStatusView();
@@ -218,7 +253,8 @@ function renderHome() {
 function renderCategoryView() {
   const grouped = groupBy(state.books, (book) => book.category || "未分类");
   const categories = [...state.categories, ...Object.keys(grouped).filter((name) => !state.categories.includes(name))];
-  return `<section class="category-list">${categories.filter((name) => grouped[name]?.length).map((name) => `<article class="category-section"><div class="section-header"><button data-action="category" data-category="${escapeHtml(name)}"><h2>${escapeHtml(name)}</h2></button></div><div class="book-list">${grouped[name].slice(0, 4).map(bookRow).join("")}</div></article>`).join("") || empty("还没有书，先把第一本放进来。")}</section>`;
+  const selectable = bookDeleteActive();
+  return `<section class="category-list">${categories.filter((name) => grouped[name]?.length).map((name) => `<article class="category-section"><div class="section-header"><button data-action="category" data-category="${escapeHtml(name)}"><h2>${escapeHtml(name)}</h2></button></div><div class="book-list">${grouped[name].slice(0, 4).map((book) => bookRow(book, selectable)).join("")}</div></article>`).join("") || empty("还没有书，先把第一本放进来。")}</section>`;
 }
 
 function renderCoverView() {
@@ -229,18 +265,19 @@ function renderCoverView() {
     const value = String(a[field] || "").localeCompare(String(b[field] || ""), "zh-CN");
     return direction === "asc" ? value : -value;
   });
-  return `<section class="cover-view"><div class="toolbar"><div class="sorts"><label class="sort-select"><span class="sr-only">排序方式</span><select data-control="sort" aria-label="排序方式"><option value="lastRead" ${sort === "lastRead" ? "selected" : ""}>最后阅读</option><option value="created" ${sort === "created" ? "selected" : ""}>加入时间</option><option value="title" ${sort === "title" ? "selected" : ""}>书名</option></select></label><button class="quiet-button" data-action="direction">${direction === "asc" ? "↑ 升序" : "↓ 降序"}</button></div><span>无形书架，按你此刻的方式相遇。</span></div><div class="cover-grid">${sorted.map((book) => `<button class="book-card" data-book="${book.id}">${cover(book)}<strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author || "未署名")}</small></button>`).join("")}</div></section>`;
+  return `<section class="cover-view"><div class="toolbar"><div class="sorts"><label class="sort-select"><span class="sr-only">排序方式</span><select data-control="sort" aria-label="排序方式"><option value="lastRead" ${sort === "lastRead" ? "selected" : ""}>最后阅读</option><option value="created" ${sort === "created" ? "selected" : ""}>加入时间</option><option value="title" ${sort === "title" ? "selected" : ""}>书名</option></select></label><button class="quiet-button" data-action="direction">${direction === "asc" ? "↑ 升序" : "↓ 降序"}</button></div><span>无形书架，按你此刻的方式相遇。</span></div><div class="cover-grid">${sorted.map((book) => renderCoverBookCard(book, bookDeleteActive())).join("")}</div></section>`;
 }
 
 function renderStatusView() {
   const layout = state.route.statusLayout;
   const statuses = [["reading", "🌱 阅读中"], ["pending", "📝 待整理"], ["organized", "🌳 已整理"]];
-  return `<section class="status-board"><div class="toolbar"><p>每本书都可以随时回到任何阶段。</p><div class="segmented"><button class="${layout === "category" ? "active" : ""}" data-action="status-layout" data-layout="category">分类显示</button><button class="${layout === "cover" ? "active" : ""}" data-action="status-layout" data-layout="cover">封面显示</button></div></div><div class="status-columns">${statuses.map(([status, label]) => { const books = state.books.filter((book) => book.status === status); return `<article class="status-column"><header><h2>${label}</h2></header>${layout === "cover" ? `<div class="mini-cover-grid">${books.map((book) => `<button class="mini-card" data-book="${book.id}">${cover(book, true)}<small>${escapeHtml(book.title)}</small></button>`).join("") || empty("暂时没有")}</div>` : renderStatusCategory(books)}</article>`; }).join("")}</div></section>`;
+  const selectable = bookDeleteActive();
+  return `<section class="status-board"><div class="toolbar"><p>每本书都可以随时回到任何阶段。</p><div class="segmented"><button class="${layout === "category" ? "active" : ""}" data-action="status-layout" data-layout="category">分类显示</button><button class="${layout === "cover" ? "active" : ""}" data-action="status-layout" data-layout="cover">封面显示</button></div></div><div class="status-columns">${statuses.map(([status, label]) => { const books = state.books.filter((book) => book.status === status); return `<article class="status-column"><header><h2>${label}</h2></header>${layout === "cover" ? `<div class="mini-cover-grid">${books.map((book) => renderMiniBookCard(book, selectable)).join("") || empty("暂时没有")}</div>` : renderStatusCategory(books, selectable)}</article>`; }).join("")}</div></section>`;
 }
 
-function renderStatusCategory(books) {
+function renderStatusCategory(books, selectable = false) {
   const grouped = groupBy(books, (book) => book.category || "未分类");
-  return Object.entries(grouped).map(([category, entries]) => `<section class="status-group"><p>${escapeHtml(category)}</p><div class="book-list">${entries.map(bookRow).join("")}</div></section>`).join("") || empty("暂时没有");
+  return Object.entries(grouped).map(([category, entries]) => `<section class="status-group"><p>${escapeHtml(category)}</p><div class="book-list">${entries.map((book) => bookRow(book, selectable)).join("")}</div></section>`).join("") || empty("暂时没有");
 }
 
 function renderCategoryPage(category) {
@@ -263,7 +300,7 @@ function renderBook(book) {
   const noteDeleteActive = state.route.deleteMode === "note";
   const dailyActions = renderSectionActions("daily", book.id, "add-daily", "+ 记一次阅读", cards.length > 0);
   const noteActions = renderSectionActions("note", book.id, "add-note", "+ 添加整理内容", book.notes.length > 0);
-  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div><button class="quiet-button" data-action="edit-book" data-book="${book.id}">编辑</button></div><div class="field-grid"><div><span>为什么开始看</span><p>${escapeHtml(book.reason || "还没有写下这个答案。")}</p></div><div><span>第一印象</span><p>${escapeHtml(book.firstImpression || "还没有写下第一印象。")}</p></div></div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div>${dailyActions}</div><div class="timeline">${cards.map((card) => renderDailyCard(card, dailyDeleteActive)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div>${noteActions}</div><div class="notes-grid">${book.notes.map((note) => renderNoteCard(note, noteDeleteActive)).join("") || empty("想法不必一次整理完，它们会慢慢长出来。")}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
+  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div><button class="quiet-button" data-action="edit-book" data-book="${book.id}">编辑</button></div>${renderFirstMeetCard(book)}</section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div>${dailyActions}</div><div class="timeline">${cards.map((card) => renderDailyCard(card, dailyDeleteActive)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div>${noteActions}</div><div class="notes-grid">${book.notes.map((note) => renderNoteCard(note, noteDeleteActive)).join("") || empty("想法不必一次整理完，它们会慢慢长出来。")}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
 }
 
 function renderWishes() {
@@ -360,6 +397,7 @@ function onAction(event) {
   if (action === "add-note") openNoteForm(target.dataset.book, target.dataset.noteType);
   if (action === "enter-delete-mode") setRoute({ deleteMode: target.dataset.deleteMode });
   if (action === "cancel-delete-mode") setRoute({ deleteMode: "" });
+  if (action === "delete-selected-books") deleteBooks(getSelectedItemIds("book"));
   if (action === "delete-selected-daily") deleteDailyCards(target.dataset.book, getSelectedItemIds("daily"));
   if (action === "delete-selected-notes") deleteNotes(target.dataset.book, getSelectedItemIds("note"));
   if (action === "open-note-url") {
@@ -404,6 +442,21 @@ function updateBulkDeleteButton(kind) {
 function updateLastReadFromCards(book) {
   const latestCardDate = book.dailyCards.map((card) => card.date).filter(Boolean).sort().at(-1);
   book.lastRead = latestCardDate || book.startDate || book.createdAt || today();
+}
+
+function deleteBooks(bookIds) {
+  const ids = new Set((bookIds || []).filter(Boolean));
+  if (!ids.size) return;
+  const deletedBooks = state.books.filter((book) => ids.has(book.id));
+  if (!deletedBooks.length) return;
+  const message = deletedBooks.length === 1 ? "确定删除这本书吗？" : `确定删除选中的 ${deletedBooks.length} 本书吗？`;
+  if (!window.confirm(message)) return;
+  const attachmentIds = deletedBooks.flatMap((book) => book.notes.map((note) => note.attachment?.id).filter(Boolean));
+  state.books = state.books.filter((book) => !ids.has(book.id));
+  state.route.deleteMode = "";
+  saveState();
+  render();
+  if (attachmentIds.length) Promise.allSettled(attachmentIds.map(deleteStoredAttachment));
 }
 
 function deleteDailyCards(bookId, cardIds) {
