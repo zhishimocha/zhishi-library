@@ -455,6 +455,7 @@ select {
   -webkit-line-clamp: 2;
   font-size: 18px;
   line-height: 1.35;
+  text-align: center;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
@@ -499,6 +500,10 @@ select {
   background: var(--paper);
   padding: 18px;
   box-shadow: var(--shadow);
+}
+
+.book-profile > div {
+  text-align: center;
 }
 
 .book-profile .cover {
