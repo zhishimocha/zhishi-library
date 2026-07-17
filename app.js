@@ -107,6 +107,17 @@ async function readAttachment(id) {
   });
 }
 
+async function deleteStoredAttachment(id) {
+  const database = await openAttachmentDatabase();
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(ATTACHMENT_STORE, "readwrite");
+    transaction.objectStore(ATTACHMENT_STORE).delete(id);
+    transaction.oncomplete = () => { database.close(); resolve(); };
+    transaction.onerror = () => { database.close(); reject(transaction.error); };
+    transaction.onabort = () => { database.close(); reject(transaction.error); };
+  });
+}
+
 async function openStoredAttachment(id, previewable) {
   const previewWindow = previewable ? window.open("about:blank", "_blank") : null;
   try {
@@ -162,14 +173,18 @@ function bookRow(book) {
   </button>`;
 }
 
-function renderNoteCard(note) {
+function renderDailyCard(card, bookId) {
+  return `<article class="daily-card"><div class="card-toolbar"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time><div class="card-toolbar-actions"><label class="selection-control" title="选择这条阅读记录"><input type="checkbox" data-select-item="daily" data-item-id="${escapeHtml(card.id)}"><span class="sr-only">选择这条阅读记录</span></label><button class="delete-button" data-action="delete-daily" data-book="${escapeHtml(bookId)}" data-card="${escapeHtml(card.id)}">删除</button></div></div><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}${card.tags?.length ? `<div class="chips">${card.tags.map((tag) => `<span class="chip"># ${escapeHtml(tag)}</span>`).join("")}</div>` : ""}</article>`;
+}
+
+function renderNoteCard(note, bookId) {
   const resourceUrl = normalizeExternalUrl(note.resourceUrl);
   const attachment = note.attachment?.id ? note.attachment : null;
   const resources = [
     resourceUrl ? `<a class="note-resource-link" href="${escapeHtml(resourceUrl)}" target="_blank" rel="noopener noreferrer">打开关联地址 ↗</a>` : "",
     attachment ? `<button class="note-attachment-button" data-action="open-attachment" data-attachment="${escapeHtml(attachment.id)}" data-preview="${isPreviewableAttachment(attachment)}">${isPreviewableAttachment(attachment) ? "打开" : "下载"} ${escapeHtml(attachment.name)} <small>${formatFileSize(attachment.size)}</small></button>` : "",
   ].filter(Boolean).join("");
-  return `<article class="note-card"><span>${escapeHtml(note.type)}</span><h3>${escapeHtml(note.title)}</h3>${note.content ? `<p>${escapeHtml(note.content)}</p>` : ""}${resources ? `<div class="note-card-actions">${resources}</div>` : ""}</article>`;
+  return `<article class="note-card"><div class="card-toolbar"><span class="note-kind">${escapeHtml(note.type)}</span><div class="card-toolbar-actions"><label class="selection-control" title="选择这条整理内容"><input type="checkbox" data-select-item="note" data-item-id="${escapeHtml(note.id)}"><span class="sr-only">选择这条整理内容</span></label><button class="delete-button" data-action="delete-note" data-book="${escapeHtml(bookId)}" data-note="${escapeHtml(note.id)}">删除</button></div></div><h3>${escapeHtml(note.title)}</h3>${note.content ? `<p>${escapeHtml(note.content)}</p>` : ""}${resources ? `<div class="note-card-actions">${resources}</div>` : ""}</article>`;
 }
 
 function renderAppShell(content, options = {}) {
@@ -229,7 +244,7 @@ function renderCategoryPage(category) {
 
 function renderBook(book) {
   const cards = [...book.dailyCards].sort((a, b) => b.date.localeCompare(a.date));
-  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div><button class="quiet-button" data-action="edit-book" data-book="${book.id}">编辑</button></div><div class="field-grid"><div><span>为什么开始看</span><p>${escapeHtml(book.reason || "还没有写下这个答案。")}</p></div><div><span>第一印象</span><p>${escapeHtml(book.firstImpression || "还没有写下第一印象。")}</p></div></div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div><button class="quiet-button" data-action="add-daily" data-book="${book.id}">+ 记一次阅读</button></div><div class="timeline">${cards.map((card) => `<article class="daily-card"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}${card.tags?.length ? `<div class="chips">${card.tags.map((tag) => `<span class="chip"># ${escapeHtml(tag)}</span>`).join("")}</div>` : ""}</article>`).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div><button class="quiet-button" data-action="add-note" data-book="${book.id}">+ 添加整理内容</button></div><div class="notes-grid">${book.notes.map(renderNoteCard).join("") || empty("想法不必一次整理完，它们会慢慢长出来。")}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
+  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div><button class="quiet-button" data-action="edit-book" data-book="${book.id}">编辑</button></div><div class="field-grid"><div><span>为什么开始看</span><p>${escapeHtml(book.reason || "还没有写下这个答案。")}</p></div><div><span>第一印象</span><p>${escapeHtml(book.firstImpression || "还没有写下第一印象。")}</p></div></div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div><div class="section-actions"><button class="quiet-button" data-action="add-daily" data-book="${book.id}">+ 记一次阅读</button><button class="quiet-button danger-button" data-action="delete-selected-daily" data-book="${book.id}" data-bulk-delete="daily" disabled>删除所选</button></div></div><div class="timeline">${cards.map((card) => renderDailyCard(card, book.id)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div><div class="section-actions"><button class="quiet-button" data-action="add-note" data-book="${book.id}">+ 添加整理内容</button><button class="quiet-button danger-button" data-action="delete-selected-notes" data-book="${book.id}" data-bulk-delete="note" disabled>删除所选</button></div></div><div class="notes-grid">${book.notes.map((note) => renderNoteCard(note, book.id)).join("") || empty("想法不必一次整理完，它们会慢慢长出来。")}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
 }
 
 function renderWishes() {
@@ -296,7 +311,7 @@ function openCategoryForm() { openModal("新增分类", `<form data-form="catego
 function openDailyForm(bookId) { openModal("新增每日卡片", `<form data-form="daily" class="form-grid"><input type="hidden" name="bookId" value="${bookId}"><label>日期<input type="date" name="date" value="${today()}"></label><label>阅读位置<input name="position" placeholder="章节、页码"></label><label class="span-2">💎 今日最有意思的一点<textarea required name="insight" placeholder="用一句话留住它。"></textarea></label><label class="span-2">💭 我的想法<textarea name="thought" placeholder="这让我想到什么？"></textarea></label><label class="span-2">🔗 联想到什么<textarea name="link" placeholder="人、事、旧笔记，或另一本书。"></textarea></label><label class="span-2">标签<input name="tags" placeholder="用逗号分开，可选"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">收下这次阅读</button></footer></form>`); }
 function openNoteForm(bookId, suggestedType = "长笔记") {
   const types = ["思维导图", "人物关系", "时间线", "长笔记", "金句", "内容总结", "自己的理解", "关联书籍", "图片 / PDF"];
-  openModal("添加整理内容", `<form data-form="note" class="form-grid note-form"><input type="hidden" name="bookId" value="${bookId}"><label>类型<select name="type">${options(types, suggestedType)}</select></label><label>标题<input required name="title" placeholder="给这份内容一个名字"></label><div class="span-2 form-field"><label for="note-resource-url">关联地址</label><span class="url-input-row"><input id="note-resource-url" type="url" name="resourceUrl" placeholder="XMind、ProcessOn 或其他工具地址"><button type="button" class="quiet-button" data-action="open-note-url">打开地址</button></span></div><label class="span-2 attachment-field">导入附件<input type="file" name="attachment" accept=".xmind,.pdf,.opml,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf"></label><label class="span-2">文字补充<textarea name="content" placeholder="可选，补充说明这份整理内容。"></textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">放入整理区</button></footer></form>`);
+  openModal("添加整理内容", `<form data-form="note" class="form-grid note-form"><input type="hidden" name="bookId" value="${bookId}"><label>类型<select name="type">${options(types, suggestedType)}</select></label><label>标题<input required name="title" placeholder="给这份内容一个名字"></label><div class="span-2 form-field"><label for="note-resource-url">关联地址</label><span class="url-input-row"><input id="note-resource-url" type="text" inputmode="url" name="resourceUrl" placeholder="chatgpt.com 或完整网址"><button type="button" class="quiet-button" data-action="open-note-url">打开地址</button></span></div><label class="span-2 attachment-field">导入附件<input type="file" name="attachment" accept=".xmind,.pdf,.opml,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf"></label><label class="span-2">文字补充<textarea name="content" placeholder="可选，补充说明这份整理内容。"></textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">放入整理区</button></footer></form>`);
 }
 
 function onAction(event) {
@@ -324,6 +339,10 @@ function onAction(event) {
   if (action === "add-category") openCategoryForm();
   if (action === "add-daily") openDailyForm(target.dataset.book);
   if (action === "add-note") openNoteForm(target.dataset.book, target.dataset.noteType);
+  if (action === "delete-daily") deleteDailyCards(target.dataset.book, [target.dataset.card]);
+  if (action === "delete-selected-daily") deleteDailyCards(target.dataset.book, getSelectedItemIds("daily"));
+  if (action === "delete-note") deleteNotes(target.dataset.book, [target.dataset.note]);
+  if (action === "delete-selected-notes") deleteNotes(target.dataset.book, getSelectedItemIds("note"));
   if (action === "open-note-url") {
     const input = target.closest("form")?.elements.resourceUrl;
     const url = normalizeExternalUrl(input?.value);
@@ -352,6 +371,49 @@ function startWish(wishId) {
   const wish = state.wishes.splice(index, 1)[0];
   const book = { id: uid(), title: wish.title, author: wish.author, category: wish.category, source: wish.source, reason: wish.reason, startDate: today(), firstImpression: "", expectation: "", status: "reading", createdAt: today(), lastRead: today(), color: "rose", dailyCards: [], notes: [] };
   state.books.unshift(book); saveState(); closeModal(); setRoute({ page: "book", bookId: book.id });
+}
+
+function getSelectedItemIds(kind) {
+  return [...document.querySelectorAll(`input[data-select-item="${kind}"]:checked`)].map((input) => input.dataset.itemId).filter(Boolean);
+}
+
+function updateBulkDeleteButton(kind) {
+  const button = document.querySelector(`[data-bulk-delete="${kind}"]`);
+  if (button) button.disabled = getSelectedItemIds(kind).length === 0;
+}
+
+function updateLastReadFromCards(book) {
+  const latestCardDate = book.dailyCards.map((card) => card.date).filter(Boolean).sort().at(-1);
+  book.lastRead = latestCardDate || book.startDate || book.createdAt || today();
+}
+
+function deleteDailyCards(bookId, cardIds) {
+  const book = state.books.find((entry) => entry.id === bookId);
+  const ids = new Set((cardIds || []).filter(Boolean));
+  if (!book || !ids.size) return;
+  const count = book.dailyCards.filter((card) => ids.has(card.id)).length;
+  if (!count) return;
+  const message = count === 1 ? "确定删除这条阅读记录吗？" : `确定删除选中的 ${count} 条阅读记录吗？`;
+  if (!window.confirm(message)) return;
+  book.dailyCards = book.dailyCards.filter((card) => !ids.has(card.id));
+  updateLastReadFromCards(book);
+  saveState();
+  render();
+}
+
+function deleteNotes(bookId, noteIds) {
+  const book = state.books.find((entry) => entry.id === bookId);
+  const ids = new Set((noteIds || []).filter(Boolean));
+  if (!book || !ids.size) return;
+  const deletedNotes = book.notes.filter((note) => ids.has(note.id));
+  if (!deletedNotes.length) return;
+  const message = deletedNotes.length === 1 ? "确定删除这条整理内容吗？" : `确定删除选中的 ${deletedNotes.length} 条整理内容吗？`;
+  if (!window.confirm(message)) return;
+  const attachmentIds = deletedNotes.map((note) => note.attachment?.id).filter(Boolean);
+  book.notes = book.notes.filter((note) => !ids.has(note.id));
+  saveState();
+  render();
+  if (attachmentIds.length) Promise.allSettled(attachmentIds.map(deleteStoredAttachment));
 }
 
 function prepareCoverForStorage(file) {
@@ -419,6 +481,7 @@ document.addEventListener("submit", onForm);
 document.addEventListener("change", (event) => {
   if (event.target.dataset.control === "sort") setRoute({ sort: event.target.value });
   if (event.target.dataset.status) { const book = state.books.find((entry) => entry.id === event.target.dataset.status); if (book) { book.status = event.target.value; saveState(); render(); } }
+  if (event.target.dataset.selectItem) updateBulkDeleteButton(event.target.dataset.selectItem);
 });
 
 render();

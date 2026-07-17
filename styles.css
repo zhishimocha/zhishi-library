@@ -8,6 +8,7 @@
   --line: #ddd5c9;
   --accent: #7c5b42;
   --accent-2: #a97956;
+  --danger: #a54842;
   --shadow: 0 18px 50px rgba(45, 36, 28, 0.09);
   --radius: 8px;
   font-family: "Inter", "SF Pro Display", "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
@@ -23,6 +24,7 @@ body[data-theme="black"] {
   --line: #3a3835;
   --accent: #d2a66f;
   --accent-2: #f0c98f;
+  --danger: #ef8f88;
   --shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
 }
 
@@ -149,6 +151,39 @@ button {
 .icon-button:hover,
 .primary-button:hover {
   transform: translateY(-1px);
+}
+
+.quiet-button:disabled,
+.primary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.46;
+}
+
+.quiet-button:disabled:hover,
+.primary-button:disabled:hover {
+  transform: none;
+}
+
+.danger-button {
+  border-color: color-mix(in srgb, var(--danger) 38%, var(--line));
+  color: var(--danger);
+}
+
+.delete-button {
+  min-height: 32px;
+  border: 1px solid color-mix(in srgb, var(--danger) 34%, var(--line));
+  border-radius: 6px;
+  background: transparent;
+  color: var(--danger);
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.delete-button:hover,
+.danger-button:not(:disabled):hover {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 62%, var(--line));
 }
 
 .hero-row {
@@ -284,6 +319,25 @@ select {
   color: var(--ink);
   padding: 0;
   font-weight: 700;
+}
+
+.section-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.section-header .section-actions button {
+  min-height: 36px;
+  background: var(--paper);
+  padding: 0 12px;
+  text-align: center;
+  font-weight: 600;
+}
+
+.section-header .section-actions .danger-button {
+  color: var(--danger);
 }
 
 .count {
@@ -445,6 +499,41 @@ select {
 .daily-card {
   display: grid;
   gap: 8px;
+}
+
+.card-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.card-toolbar time,
+.card-toolbar .note-kind {
+  min-width: 0;
+}
+
+.card-toolbar-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.selection-control {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  cursor: pointer;
+}
+
+.selection-control input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--accent);
 }
 
 .daily-top,
@@ -982,7 +1071,7 @@ textarea {
 
 .field-grid span,
 .daily-card time,
-.note-card > span {
+.note-card .note-kind {
   color: var(--accent);
   font-size: 11px;
   font-weight: 700;
@@ -1139,6 +1228,19 @@ textarea {
     padding: 28px 0 24px;
   }
 
+  .section-header {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .section-actions {
+    justify-content: flex-start;
+  }
+
+  .card-toolbar {
+    align-items: flex-start;
+  }
+
   .heading-tools {
     align-self: end;
   }
@@ -1156,6 +1258,10 @@ textarea {
   }
 
   .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .url-input-row {
     grid-template-columns: 1fr;
   }
 }
