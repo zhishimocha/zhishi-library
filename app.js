@@ -204,8 +204,8 @@ function onAction(event) {
   if (!target) return;
   const modalSurface = event.target.closest("[data-modal-surface]");
   if (modalSurface && !modalSurface.contains(target)) return;
-  if (target.dataset.book) { setRoute({ page: "book", bookId: target.dataset.book }); return; }
   const action = target.dataset.action;
+  if (!action && target.dataset.book) { setRoute({ page: "book", bookId: target.dataset.book }); return; }
   if (!action) return;
   if (action === "home") setRoute({ page: "home", query: "" });
   if (action === "wishes") setRoute({ page: "wishes", query: "" });
