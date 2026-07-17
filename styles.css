@@ -147,14 +147,15 @@ button {
   color: var(--accent);
 }
 
-.danger-icon {
-  color: var(--danger);
+.delete-icon {
+  color: var(--ink);
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 1;
 }
 
-.danger-icon.is-active {
-  border-color: color-mix(in srgb, var(--danger) 48%, var(--line));
-  background: color-mix(in srgb, var(--danger) 10%, var(--paper));
-  color: var(--danger);
+.delete-icon.is-active {
+  color: var(--ink);
 }
 
 .primary-button {

@@ -228,12 +228,12 @@ function renderNoteCard(note, selectable = false) {
 function renderAppShell(content, options = {}) {
   const { page = "home", title = "我的图书馆", subtitle = "让每本书留下它在你生命里的位置" } = options;
   const homeDeleteActive = page === "home" && state.route.deleteMode === "book";
-  const homeDeleteButton = page === "home" ? `<button class="icon-button danger-icon ${homeDeleteActive ? "is-active" : ""}" data-action="${homeDeleteActive ? "cancel-delete-mode" : "enter-delete-mode"}" ${homeDeleteActive ? "" : 'data-delete-mode="book"'} title="${homeDeleteActive ? "退出删除" : "删除书籍"}" aria-label="${homeDeleteActive ? "退出删除" : "删除书籍"}">⌫</button>` : "";
+  const homeDeleteButton = page === "home" ? `<button class="icon-button delete-icon ${homeDeleteActive ? "is-active" : ""}" data-action="${homeDeleteActive ? "cancel-delete-mode" : "enter-delete-mode"}" ${homeDeleteActive ? "" : 'data-delete-mode="book"'} title="${homeDeleteActive ? "退出删除" : "删除书籍"}" aria-label="${homeDeleteActive ? "退出删除" : "删除书籍"}">×</button>` : "";
   return `<main class="app-shell">
     <header class="topbar">
       <form class="search" data-form="search"><span aria-hidden="true">⌕</span><input name="query" value="${escapeHtml(state.route.query || "")}" placeholder="搜索书、想法、标签或整理内容" autocomplete="off"></form>
     </header>
-    <section class="page-heading"><div><p class="eyebrow">${page === "book" ? "BOOK PAGE" : page === "wishes" ? "WISH POOL" : "PRIVATE COLLECTION"}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div><div class="heading-tools">${page !== "book" ? `<span class="collection-count">${state.books.length} 本已入馆</span>` : ""}<nav class="actions" aria-label="图书馆工具"><button class="icon-button" data-action="theme" title="换肤" aria-label="换肤">◐</button><button class="icon-button ${page === "wishes" ? "is-active" : ""}" data-action="wishes" title="愿望池" aria-label="愿望池">♡</button>${homeDeleteButton}<button class="icon-button ${page === "home" ? "is-active" : ""}" data-action="view-menu" title="切换视图" aria-label="切换视图">▦</button></nav></div></section>
+    <section class="page-heading"><div><p class="eyebrow">${page === "book" ? "BOOK PAGE" : page === "wishes" ? "WISH POOL" : "PRIVATE COLLECTION"}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div><div class="heading-tools">${page !== "book" ? `<span class="collection-count">${state.books.length} 本已入馆</span>` : ""}<nav class="actions" aria-label="图书馆工具"><button class="icon-button" data-action="theme" title="换肤" aria-label="换肤">◐</button>${homeDeleteButton}<button class="icon-button ${page === "wishes" ? "is-active" : ""}" data-action="wishes" title="愿望池" aria-label="愿望池">♡</button><button class="icon-button ${page === "home" ? "is-active" : ""}" data-action="view-menu" title="切换视图" aria-label="切换视图">▦</button></nav></div></section>
     ${content}
     <button class="fab" data-action="open-add" aria-label="新增内容" title="新增">+</button>
     <div id="modal-root"></div>
