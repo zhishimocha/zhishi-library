@@ -35,7 +35,7 @@ function isPreviewableAttachment(attachment = {}) {
 
 const starterState = {
   theme: "white",
-  route: { page: "home", view: "category", statusLayout: "category", sort: "lastRead", direction: "desc" },
+  route: { page: "home", view: "category", statusLayout: "category", sort: "lastRead", direction: "desc", deleteMode: "" },
   categories: ["人物传记", "历史", "商业", "心理", "小说", "随笔"],
   books: [
     {
@@ -173,18 +173,24 @@ function bookRow(book) {
   </button>`;
 }
 
-function renderDailyCard(card, bookId) {
-  return `<article class="daily-card"><div class="card-toolbar"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time><div class="card-toolbar-actions"><label class="selection-control" title="选择这条阅读记录"><input type="checkbox" data-select-item="daily" data-item-id="${escapeHtml(card.id)}"><span class="sr-only">选择这条阅读记录</span></label><button class="delete-button" data-action="delete-daily" data-book="${escapeHtml(bookId)}" data-card="${escapeHtml(card.id)}">删除</button></div></div><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}${card.tags?.length ? `<div class="chips">${card.tags.map((tag) => `<span class="chip"># ${escapeHtml(tag)}</span>`).join("")}</div>` : ""}</article>`;
+function selectionControl(kind, id, label) {
+  return `<label class="selection-control" title="${escapeHtml(label)}"><input type="checkbox" data-select-item="${escapeHtml(kind)}" data-item-id="${escapeHtml(id)}"><span class="sr-only">${escapeHtml(label)}</span></label>`;
 }
 
-function renderNoteCard(note, bookId) {
+function renderDailyCard(card, selectable = false) {
+  const selection = selectable ? `<div class="card-toolbar-actions">${selectionControl("daily", card.id, "选择这条阅读记录")}</div>` : "";
+  return `<article class="daily-card"><div class="card-toolbar"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time>${selection}</div><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}${card.tags?.length ? `<div class="chips">${card.tags.map((tag) => `<span class="chip"># ${escapeHtml(tag)}</span>`).join("")}</div>` : ""}</article>`;
+}
+
+function renderNoteCard(note, selectable = false) {
   const resourceUrl = normalizeExternalUrl(note.resourceUrl);
   const attachment = note.attachment?.id ? note.attachment : null;
+  const selection = selectable ? `<div class="card-toolbar-actions">${selectionControl("note", note.id, "选择这条整理内容")}</div>` : "";
   const resources = [
     resourceUrl ? `<a class="note-resource-link" href="${escapeHtml(resourceUrl)}" target="_blank" rel="noopener noreferrer">打开关联地址 ↗</a>` : "",
     attachment ? `<button class="note-attachment-button" data-action="open-attachment" data-attachment="${escapeHtml(attachment.id)}" data-preview="${isPreviewableAttachment(attachment)}">${isPreviewableAttachment(attachment) ? "打开" : "下载"} ${escapeHtml(attachment.name)} <small>${formatFileSize(attachment.size)}</small></button>` : "",
   ].filter(Boolean).join("");
-  return `<article class="note-card"><div class="card-toolbar"><span class="note-kind">${escapeHtml(note.type)}</span><div class="card-toolbar-actions"><label class="selection-control" title="选择这条整理内容"><input type="checkbox" data-select-item="note" data-item-id="${escapeHtml(note.id)}"><span class="sr-only">选择这条整理内容</span></label><button class="delete-button" data-action="delete-note" data-book="${escapeHtml(bookId)}" data-note="${escapeHtml(note.id)}">删除</button></div></div><h3>${escapeHtml(note.title)}</h3>${note.content ? `<p>${escapeHtml(note.content)}</p>` : ""}${resources ? `<div class="note-card-actions">${resources}</div>` : ""}</article>`;
+  return `<article class="note-card"><div class="card-toolbar"><span class="note-kind">${escapeHtml(note.type)}</span>${selection}</div><h3>${escapeHtml(note.title)}</h3>${note.content ? `<p>${escapeHtml(note.content)}</p>` : ""}${resources ? `<div class="note-card-actions">${resources}</div>` : ""}</article>`;
 }
 
 function renderAppShell(content, options = {}) {
@@ -242,9 +248,22 @@ function renderCategoryPage(category) {
   return renderAppShell(`<section class="detail-panel"><div class="section-header"><h2>${escapeHtml(category)}</h2><button class="quiet-button" data-action="home">返回图书馆</button></div><div class="book-list">${books.map(bookRow).join("") || empty("这个分类还没有书。")}</div></section>`, { title: category, subtitle: "在这里相遇的书" });
 }
 
+function renderSectionActions(kind, bookId, addAction, addLabel, hasItems) {
+  const active = state.route.deleteMode === kind;
+  const deleteAction = kind === "daily" ? "delete-selected-daily" : "delete-selected-notes";
+  if (active) {
+    return `<div class="section-actions is-delete-mode"><button class="quiet-button" data-action="cancel-delete-mode">取消</button><button class="quiet-button danger-button" data-action="${deleteAction}" data-book="${escapeHtml(bookId)}" data-bulk-delete="${escapeHtml(kind)}" disabled>删除所选</button></div>`;
+  }
+  return `<div class="section-actions"><button class="quiet-button" data-action="${addAction}" data-book="${escapeHtml(bookId)}">${addLabel}</button><button class="quiet-button danger-button" data-action="enter-delete-mode" data-delete-mode="${escapeHtml(kind)}" ${hasItems ? "" : "disabled"}>删除</button></div>`;
+}
+
 function renderBook(book) {
   const cards = [...book.dailyCards].sort((a, b) => b.date.localeCompare(a.date));
-  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div><button class="quiet-button" data-action="edit-book" data-book="${book.id}">编辑</button></div><div class="field-grid"><div><span>为什么开始看</span><p>${escapeHtml(book.reason || "还没有写下这个答案。")}</p></div><div><span>第一印象</span><p>${escapeHtml(book.firstImpression || "还没有写下第一印象。")}</p></div></div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div><div class="section-actions"><button class="quiet-button" data-action="add-daily" data-book="${book.id}">+ 记一次阅读</button><button class="quiet-button danger-button" data-action="delete-selected-daily" data-book="${book.id}" data-bulk-delete="daily" disabled>删除所选</button></div></div><div class="timeline">${cards.map((card) => renderDailyCard(card, book.id)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div><div class="section-actions"><button class="quiet-button" data-action="add-note" data-book="${book.id}">+ 添加整理内容</button><button class="quiet-button danger-button" data-action="delete-selected-notes" data-book="${book.id}" data-bulk-delete="note" disabled>删除所选</button></div></div><div class="notes-grid">${book.notes.map((note) => renderNoteCard(note, book.id)).join("") || empty("想法不必一次整理完，它们会慢慢长出来。")}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
+  const dailyDeleteActive = state.route.deleteMode === "daily";
+  const noteDeleteActive = state.route.deleteMode === "note";
+  const dailyActions = renderSectionActions("daily", book.id, "add-daily", "+ 记一次阅读", cards.length > 0);
+  const noteActions = renderSectionActions("note", book.id, "add-note", "+ 添加整理内容", book.notes.length > 0);
+  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div><button class="quiet-button" data-action="edit-book" data-book="${book.id}">编辑</button></div><div class="field-grid"><div><span>为什么开始看</span><p>${escapeHtml(book.reason || "还没有写下这个答案。")}</p></div><div><span>第一印象</span><p>${escapeHtml(book.firstImpression || "还没有写下第一印象。")}</p></div></div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div>${dailyActions}</div><div class="timeline">${cards.map((card) => renderDailyCard(card, dailyDeleteActive)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div>${noteActions}</div><div class="notes-grid">${book.notes.map((note) => renderNoteCard(note, noteDeleteActive)).join("") || empty("想法不必一次整理完，它们会慢慢长出来。")}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
 }
 
 function renderWishes() {
@@ -320,15 +339,15 @@ function onAction(event) {
   const modalSurface = event.target.closest("[data-modal-surface]");
   if (modalSurface && !modalSurface.contains(target)) return;
   const action = target.dataset.action;
-  if (!action && target.dataset.book) { setRoute({ page: "book", bookId: target.dataset.book }); return; }
+  if (!action && target.dataset.book) { setRoute({ page: "book", bookId: target.dataset.book, deleteMode: "" }); return; }
   if (!action) return;
-  if (action === "home") setRoute({ page: "home", query: "" });
-  if (action === "wishes") setRoute({ page: "wishes", query: "" });
-  if (action === "view") setRoute({ page: "home", view: target.dataset.view });
-  if (action === "category") setRoute({ page: "category", category: target.dataset.category });
+  if (action === "home") setRoute({ page: "home", query: "", deleteMode: "" });
+  if (action === "wishes") setRoute({ page: "wishes", query: "", deleteMode: "" });
+  if (action === "view") setRoute({ page: "home", view: target.dataset.view, deleteMode: "" });
+  if (action === "category") setRoute({ page: "category", category: target.dataset.category, deleteMode: "" });
   if (action === "status-layout") setRoute({ statusLayout: target.dataset.layout });
   if (action === "direction") setRoute({ direction: state.route.direction === "asc" ? "desc" : "asc" });
-  if (action === "view-menu") { setRoute({ page: "home", view: state.route.view === "category" ? "cover" : state.route.view === "cover" ? "status" : "category" }); }
+  if (action === "view-menu") { setRoute({ page: "home", view: state.route.view === "category" ? "cover" : state.route.view === "cover" ? "status" : "category", deleteMode: "" }); }
   if (action === "theme") { const themes = ["white", "black", "pink", "green", "blue"]; state.theme = themes[(themes.indexOf(state.theme) + 1) % themes.length]; saveState(); render(); }
   if (action === "open-add") openAddMenu();
   if (action === "close-modal") closeModal();
@@ -339,9 +358,9 @@ function onAction(event) {
   if (action === "add-category") openCategoryForm();
   if (action === "add-daily") openDailyForm(target.dataset.book);
   if (action === "add-note") openNoteForm(target.dataset.book, target.dataset.noteType);
-  if (action === "delete-daily") deleteDailyCards(target.dataset.book, [target.dataset.card]);
+  if (action === "enter-delete-mode") setRoute({ deleteMode: target.dataset.deleteMode });
+  if (action === "cancel-delete-mode") setRoute({ deleteMode: "" });
   if (action === "delete-selected-daily") deleteDailyCards(target.dataset.book, getSelectedItemIds("daily"));
-  if (action === "delete-note") deleteNotes(target.dataset.book, [target.dataset.note]);
   if (action === "delete-selected-notes") deleteNotes(target.dataset.book, getSelectedItemIds("note"));
   if (action === "open-note-url") {
     const input = target.closest("form")?.elements.resourceUrl;
@@ -370,7 +389,7 @@ function startWish(wishId) {
   if (index === -1) return;
   const wish = state.wishes.splice(index, 1)[0];
   const book = { id: uid(), title: wish.title, author: wish.author, category: wish.category, source: wish.source, reason: wish.reason, startDate: today(), firstImpression: "", expectation: "", status: "reading", createdAt: today(), lastRead: today(), color: "rose", dailyCards: [], notes: [] };
-  state.books.unshift(book); saveState(); closeModal(); setRoute({ page: "book", bookId: book.id });
+  state.books.unshift(book); saveState(); closeModal(); setRoute({ page: "book", bookId: book.id, deleteMode: "" });
 }
 
 function getSelectedItemIds(kind) {
@@ -397,6 +416,7 @@ function deleteDailyCards(bookId, cardIds) {
   if (!window.confirm(message)) return;
   book.dailyCards = book.dailyCards.filter((card) => !ids.has(card.id));
   updateLastReadFromCards(book);
+  state.route.deleteMode = "";
   saveState();
   render();
 }
@@ -411,6 +431,7 @@ function deleteNotes(bookId, noteIds) {
   if (!window.confirm(message)) return;
   const attachmentIds = deletedNotes.map((note) => note.attachment?.id).filter(Boolean);
   book.notes = book.notes.filter((note) => !ids.has(note.id));
+  state.route.deleteMode = "";
   saveState();
   render();
   if (attachmentIds.length) Promise.allSettled(attachmentIds.map(deleteStoredAttachment));
@@ -443,12 +464,12 @@ async function onForm(event) {
   if (!form) return;
   event.preventDefault();
   const data = Object.fromEntries(new FormData(form));
-  if (form.dataset.form === "search") { setRoute({ page: "search", query: data.query.trim() }); return; }
+  if (form.dataset.form === "search") { setRoute({ page: "search", query: data.query.trim(), deleteMode: "" }); return; }
   if (form.dataset.form === "book") {
     const existing = state.books.find((book) => book.id === data.id);
     const record = { ...data, id: data.id || uid(), createdAt: existing?.createdAt || today(), lastRead: existing?.lastRead || today(), color: existing?.color || "rose", coverImage: existing?.coverImage, dailyCards: existing?.dailyCards || [], notes: existing?.notes || [] };
     if (existing) Object.assign(existing, record); else state.books.unshift(record);
-    saveState(); closeModal(); setRoute({ page: "book", bookId: record.id });
+    saveState(); closeModal(); setRoute({ page: "book", bookId: record.id, deleteMode: "" });
   }
   if (form.dataset.form === "wish") { const existing = state.wishes.find((wish) => wish.id === data.id); if (existing) Object.assign(existing, { ...existing, ...data }); else state.wishes.unshift({ ...data, id: uid(), createdAt: today() }); saveState(); closeModal(); render(); }
   if (form.dataset.form === "category") { const name = data.name.trim(); if (name && !state.categories.includes(name)) state.categories.push(name); saveState(); closeModal(); render(); }
