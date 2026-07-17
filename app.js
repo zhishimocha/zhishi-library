@@ -1,4 +1,7 @@
 const STORAGE_KEY = "personal-reading-library-v1";
+const ATTACHMENT_DB = "personal-reading-library-files";
+const ATTACHMENT_STORE = "attachments";
+const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
 const $ = (selector, parent = document) => parent.querySelector(selector);
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -7,6 +10,28 @@ const escapeHtml = (value = "") => String(value).replace(/[&<>\"']/g, (character
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
 }[character]));
 const formatDate = (value) => value ? new Intl.DateTimeFormat("zh-CN", { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${value}T12:00:00`)) : "未记录";
+
+function normalizeExternalUrl(value = "") {
+  const trimmed = String(value).trim();
+  if (!trimmed) return "";
+  try {
+    const candidate = /^[a-z][a-z\d+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const url = new URL(candidate);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function formatFileSize(bytes = 0) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function isPreviewableAttachment(attachment = {}) {
+  return /^(image\/(png|jpeg|webp|gif)|application\/pdf)$/i.test(attachment.type || "") || /\.(pdf|png|jpe?g|webp|gif)$/i.test(attachment.name || "");
+}
 
 const starterState = {
   theme: "white",
@@ -50,6 +75,68 @@ function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, route: undefined }));
 }
 
+function openAttachmentDatabase() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(ATTACHMENT_DB, 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(ATTACHMENT_STORE)) request.result.createObjectStore(ATTACHMENT_STORE, { keyPath: "id" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function storeAttachment(file) {
+  const database = await openAttachmentDatabase();
+  const metadata = { id: `file-${uid()}`, name: file.name, type: file.type, size: file.size };
+  return new Promise((resolve, reject) => {
+    const transaction = database.transaction(ATTACHMENT_STORE, "readwrite");
+    transaction.objectStore(ATTACHMENT_STORE).put({ ...metadata, blob: file, createdAt: new Date().toISOString() });
+    transaction.oncomplete = () => { database.close(); resolve(metadata); };
+    transaction.onerror = () => { database.close(); reject(transaction.error); };
+    transaction.onabort = () => { database.close(); reject(transaction.error); };
+  });
+}
+
+async function readAttachment(id) {
+  const database = await openAttachmentDatabase();
+  return new Promise((resolve, reject) => {
+    const request = database.transaction(ATTACHMENT_STORE, "readonly").objectStore(ATTACHMENT_STORE).get(id);
+    request.onsuccess = () => { database.close(); resolve(request.result); };
+    request.onerror = () => { database.close(); reject(request.error); };
+  });
+}
+
+async function openStoredAttachment(id, previewable) {
+  const previewWindow = previewable ? window.open("about:blank", "_blank") : null;
+  try {
+    const attachment = await readAttachment(id);
+    if (!attachment?.blob) throw new Error("Attachment not found");
+    const objectUrl = URL.createObjectURL(attachment.blob);
+    if (previewable) {
+      if (previewWindow) {
+        previewWindow.opener = null;
+        previewWindow.location.replace(objectUrl);
+      } else {
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.target = "_blank";
+        link.rel = "noopener noreferrer";
+        link.click();
+      }
+    } else {
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = attachment.name || "attachment";
+      link.click();
+    }
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+  } catch {
+    previewWindow?.close();
+    window.alert("这个附件暂时无法读取，请重新导入。");
+  }
+}
+
 function setRoute(route) {
   state.route = { ...state.route, ...route };
   render();
@@ -73,6 +160,16 @@ function bookRow(book) {
     <span class="book-row-copy"><strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author || "未署名")} · ${escapeHtml(book.category || "未分类")}</small></span>
     <span class="row-meta">${formatDate(book.lastRead)}</span>
   </button>`;
+}
+
+function renderNoteCard(note) {
+  const resourceUrl = normalizeExternalUrl(note.resourceUrl);
+  const attachment = note.attachment?.id ? note.attachment : null;
+  const resources = [
+    resourceUrl ? `<a class="note-resource-link" href="${escapeHtml(resourceUrl)}" target="_blank" rel="noopener noreferrer">打开关联地址 ↗</a>` : "",
+    attachment ? `<button class="note-attachment-button" data-action="open-attachment" data-attachment="${escapeHtml(attachment.id)}" data-preview="${isPreviewableAttachment(attachment)}">${isPreviewableAttachment(attachment) ? "打开" : "下载"} ${escapeHtml(attachment.name)} <small>${formatFileSize(attachment.size)}</small></button>` : "",
+  ].filter(Boolean).join("");
+  return `<article class="note-card"><span>${escapeHtml(note.type)}</span><h3>${escapeHtml(note.title)}</h3>${note.content ? `<p>${escapeHtml(note.content)}</p>` : ""}${resources ? `<div class="note-card-actions">${resources}</div>` : ""}</article>`;
 }
 
 function renderAppShell(content, options = {}) {
@@ -132,7 +229,7 @@ function renderCategoryPage(category) {
 
 function renderBook(book) {
   const cards = [...book.dailyCards].sort((a, b) => b.date.localeCompare(a.date));
-  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div><button class="quiet-button" data-action="edit-book" data-book="${book.id}">编辑</button></div><div class="field-grid"><div><span>为什么开始看</span><p>${escapeHtml(book.reason || "还没有写下这个答案。")}</p></div><div><span>第一印象</span><p>${escapeHtml(book.firstImpression || "还没有写下第一印象。")}</p></div></div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div><button class="quiet-button" data-action="add-daily" data-book="${book.id}">+ 记一次阅读</button></div><div class="timeline">${cards.map((card) => `<article class="daily-card"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}${card.tags?.length ? `<div class="chips">${card.tags.map((tag) => `<span class="chip"># ${escapeHtml(tag)}</span>`).join("")}</div>` : ""}</article>`).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div><button class="quiet-button" data-action="add-note" data-book="${book.id}">+ 添加整理内容</button></div><div class="notes-grid">${book.notes.map((note) => `<article class="note-card"><span>${escapeHtml(note.type)}</span><h3>${escapeHtml(note.title)}</h3><p>${escapeHtml(note.content || "")}</p></article>`).join("") || empty("想法不必一次整理完，它们会慢慢长出来。")}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
+  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div><button class="quiet-button" data-action="edit-book" data-book="${book.id}">编辑</button></div><div class="field-grid"><div><span>为什么开始看</span><p>${escapeHtml(book.reason || "还没有写下这个答案。")}</p></div><div><span>第一印象</span><p>${escapeHtml(book.firstImpression || "还没有写下第一印象。")}</p></div></div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div><button class="quiet-button" data-action="add-daily" data-book="${book.id}">+ 记一次阅读</button></div><div class="timeline">${cards.map((card) => `<article class="daily-card"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}${card.tags?.length ? `<div class="chips">${card.tags.map((tag) => `<span class="chip"># ${escapeHtml(tag)}</span>`).join("")}</div>` : ""}</article>`).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div><button class="quiet-button" data-action="add-note" data-book="${book.id}">+ 添加整理内容</button></div><div class="notes-grid">${book.notes.map(renderNoteCard).join("") || empty("想法不必一次整理完，它们会慢慢长出来。")}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
 }
 
 function renderWishes() {
@@ -197,7 +294,10 @@ function openBookForm(book) { openModal(book ? "编辑初见" : "新增一本书
 function openWishForm(wish = {}) { openModal(wish.id ? "编辑愿望" : "放进愿望池", `<form data-form="wish" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(wish.id || "")}"><label>书名<input required name="title" value="${escapeHtml(wish.title || "")}" placeholder="想读的书"></label><label>作者<input name="author" value="${escapeHtml(wish.author || "")}" placeholder="作者"></label><label>分类<select name="category"><option value="">未分类</option>${options(state.categories, wish.category)}</select></label><label>期待程度<select name="priority"><option value="high" ${wish.priority === "high" ? "selected" : ""}>❤️ 很想看</option><option value="medium" ${wish.priority === "medium" ? "selected" : ""}>💛 一般</option><option value="low" ${wish.priority === "low" ? "selected" : ""}>🤍 随缘</option></select></label><label class="span-2">为什么想看<textarea name="reason" placeholder="可选，留给未来的自己。">${escapeHtml(wish.reason || "")}</textarea></label><label class="span-2">来源<input name="source" value="${escapeHtml(wish.source || "")}" placeholder="微信读书、小红书、朋友推荐…"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${wish.id ? "保存修改" : "放进愿望池"}</button></footer></form>`); }
 function openCategoryForm() { openModal("新增分类", `<form data-form="category" class="form-grid"><label>分类名称<input required name="name" placeholder="例如：哲学"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">添加</button></footer></form>`); }
 function openDailyForm(bookId) { openModal("新增每日卡片", `<form data-form="daily" class="form-grid"><input type="hidden" name="bookId" value="${bookId}"><label>日期<input type="date" name="date" value="${today()}"></label><label>阅读位置<input name="position" placeholder="章节、页码"></label><label class="span-2">💎 今日最有意思的一点<textarea required name="insight" placeholder="用一句话留住它。"></textarea></label><label class="span-2">💭 我的想法<textarea name="thought" placeholder="这让我想到什么？"></textarea></label><label class="span-2">🔗 联想到什么<textarea name="link" placeholder="人、事、旧笔记，或另一本书。"></textarea></label><label class="span-2">标签<input name="tags" placeholder="用逗号分开，可选"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">收下这次阅读</button></footer></form>`); }
-function openNoteForm(bookId, suggestedType = "长笔记") { openModal("添加整理内容", `<form data-form="note" class="form-grid"><input type="hidden" name="bookId" value="${bookId}"><label>类型<select name="type">${options(["思维导图", "人物关系", "时间线", "长笔记", "金句", "内容总结", "自己的理解", "关联书籍", "图片", "PDF"], suggestedType)}</select></label><label>标题<input required name="title" placeholder="给这份内容一个名字"></label><label class="span-2">内容<textarea required name="content" placeholder="可以慢慢写，整理不需要一次完成。"></textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">放入整理区</button></footer></form>`); }
+function openNoteForm(bookId, suggestedType = "长笔记") {
+  const types = ["思维导图", "人物关系", "时间线", "长笔记", "金句", "内容总结", "自己的理解", "关联书籍", "图片 / PDF"];
+  openModal("添加整理内容", `<form data-form="note" class="form-grid note-form"><input type="hidden" name="bookId" value="${bookId}"><label>类型<select name="type">${options(types, suggestedType)}</select></label><label>标题<input required name="title" placeholder="给这份内容一个名字"></label><div class="span-2 form-field"><label for="note-resource-url">关联地址</label><span class="url-input-row"><input id="note-resource-url" type="url" name="resourceUrl" placeholder="XMind、ProcessOn 或其他工具地址"><button type="button" class="quiet-button" data-action="open-note-url">打开地址</button></span></div><label class="span-2 attachment-field">导入附件<input type="file" name="attachment" accept=".xmind,.pdf,.opml,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf"></label><label class="span-2">文字补充<textarea name="content" placeholder="可选，补充说明这份整理内容。"></textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">放入整理区</button></footer></form>`);
+}
 
 function onAction(event) {
   const target = event.target.closest("[data-action], [data-book]");
@@ -224,6 +324,13 @@ function onAction(event) {
   if (action === "add-category") openCategoryForm();
   if (action === "add-daily") openDailyForm(target.dataset.book);
   if (action === "add-note") openNoteForm(target.dataset.book, target.dataset.noteType);
+  if (action === "open-note-url") {
+    const input = target.closest("form")?.elements.resourceUrl;
+    const url = normalizeExternalUrl(input?.value);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+    else window.alert("请先填写有效的网址。");
+  }
+  if (action === "open-attachment") openStoredAttachment(target.dataset.attachment, target.dataset.preview === "true");
   if (action === "change-cover") openCoverPicker(target.dataset.book);
   if (action === "random-wish") pickRandomWish();
   if (action === "start-wish") startWish(target.dataset.wish);
@@ -269,7 +376,7 @@ function prepareCoverForStorage(file) {
   });
 }
 
-function onForm(event) {
+async function onForm(event) {
   const form = event.target.closest("form[data-form]");
   if (!form) return;
   event.preventDefault();
@@ -284,7 +391,26 @@ function onForm(event) {
   if (form.dataset.form === "wish") { const existing = state.wishes.find((wish) => wish.id === data.id); if (existing) Object.assign(existing, { ...existing, ...data }); else state.wishes.unshift({ ...data, id: uid(), createdAt: today() }); saveState(); closeModal(); render(); }
   if (form.dataset.form === "category") { const name = data.name.trim(); if (name && !state.categories.includes(name)) state.categories.push(name); saveState(); closeModal(); render(); }
   if (form.dataset.form === "daily") { const book = state.books.find((entry) => entry.id === data.bookId); if (book) { book.dailyCards.push({ ...data, id: uid(), tags: data.tags.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean) }); book.lastRead = data.date; saveState(); closeModal(); render(); } }
-  if (form.dataset.form === "note") { const book = state.books.find((entry) => entry.id === data.bookId); if (book) { book.notes.unshift({ ...data, id: uid(), createdAt: today() }); saveState(); closeModal(); render(); } }
+  if (form.dataset.form === "note") {
+    const book = state.books.find((entry) => entry.id === data.bookId);
+    const file = form.elements.attachment.files[0];
+    const resourceUrl = normalizeExternalUrl(data.resourceUrl);
+    const title = data.title.trim();
+    const content = data.content.trim();
+    if (!title) { window.alert("请填写整理内容的标题。"); return; }
+    if (data.resourceUrl && !resourceUrl) { window.alert("关联地址格式不正确，请检查后再试。"); return; }
+    if (!content && !resourceUrl && !file) { window.alert("请填写文字、关联地址或导入一个附件。"); return; }
+    if (file?.size > MAX_ATTACHMENT_SIZE) { window.alert("单个附件请不要超过 25 MB。"); return; }
+    if (book) {
+      try {
+        const attachment = file ? await storeAttachment(file) : undefined;
+        book.notes.unshift({ id: uid(), type: data.type, title, content, resourceUrl, attachment, createdAt: today() });
+        saveState(); closeModal(); render();
+      } catch {
+        window.alert("附件保存失败，请换一个文件或稍后再试。");
+      }
+    }
+  }
   if (form.dataset.form === "cover") { const file = form.elements.cover.files[0]; const book = state.books.find((entry) => entry.id === data.bookId); if (!file || !book) return; prepareCoverForStorage(file).then((image) => { book.coverImage = image; saveState(); closeModal(); render(); }).catch(() => { window.alert("这张照片暂时无法读取，请换一张试试。"); }); }
 }
 

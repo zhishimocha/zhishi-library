@@ -478,6 +478,55 @@ select {
   gap: 12px;
 }
 
+.note-card {
+  display: grid;
+  gap: 10px;
+}
+
+.note-card h3,
+.note-card p {
+  margin: 0;
+}
+
+.note-card p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.note-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.note-resource-link,
+.note-attachment-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 8px 10px;
+  font-size: 13px;
+  line-height: 1.2;
+  text-decoration: none;
+}
+
+.note-resource-link:hover,
+.note-attachment-button:hover {
+  border-color: var(--accent);
+  background: var(--paper-2);
+}
+
+.note-attachment-button small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
 .note-kind {
   color: var(--accent);
   font-weight: 700;
@@ -597,6 +646,38 @@ select {
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   padding: 18px;
+}
+
+.url-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.form-field {
+  display: grid;
+  gap: 6px;
+}
+
+.url-input-row input {
+  min-width: 0;
+  width: 100%;
+}
+
+.attachment-field input[type="file"] {
+  padding: 8px;
+  cursor: pointer;
+}
+
+.attachment-field input[type="file"]::file-selector-button {
+  min-height: 34px;
+  margin-right: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--paper-2);
+  color: var(--ink);
+  padding: 6px 10px;
+  cursor: pointer;
 }
 
 label {
@@ -905,7 +986,7 @@ textarea {
   color: var(--accent);
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0;
 }
 
 .field-grid p {
