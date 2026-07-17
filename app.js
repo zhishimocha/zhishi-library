@@ -100,7 +100,7 @@ function renderHome() {
 function renderCategoryView() {
   const grouped = groupBy(state.books, (book) => book.category || "未分类");
   const categories = [...state.categories, ...Object.keys(grouped).filter((name) => !state.categories.includes(name))];
-  return `<section class="category-list">${categories.filter((name) => grouped[name]?.length).map((name) => `<article class="category-section"><div class="section-header"><button data-action="category" data-category="${escapeHtml(name)}"><h2>${escapeHtml(name)}</h2><span>${grouped[name].length} 本 →</span></button></div><div class="book-list">${grouped[name].slice(0, 4).map(bookRow).join("")}</div></article>`).join("") || empty("还没有书，先把第一本放进来。")}</section>`;
+  return `<section class="category-list">${categories.filter((name) => grouped[name]?.length).map((name) => `<article class="category-section"><div class="section-header"><button data-action="category" data-category="${escapeHtml(name)}"><h2>${escapeHtml(name)}</h2></button></div><div class="book-list">${grouped[name].slice(0, 4).map(bookRow).join("")}</div></article>`).join("") || empty("还没有书，先把第一本放进来。")}</section>`;
 }
 
 function renderCoverView() {
@@ -117,7 +117,7 @@ function renderCoverView() {
 function renderStatusView() {
   const layout = state.route.statusLayout;
   const statuses = [["reading", "🌱 阅读中"], ["pending", "📝 待整理"], ["organized", "🌳 已整理"]];
-  return `<section class="status-board"><div class="toolbar"><p>每本书都可以随时回到任何阶段。</p><div class="segmented"><button class="${layout === "category" ? "active" : ""}" data-action="status-layout" data-layout="category">分类显示</button><button class="${layout === "cover" ? "active" : ""}" data-action="status-layout" data-layout="cover">封面显示</button></div></div><div class="status-columns">${statuses.map(([status, label]) => { const books = state.books.filter((book) => book.status === status); return `<article class="status-column"><header><h2>${label}</h2><span>${books.length}</span></header>${layout === "cover" ? `<div class="mini-cover-grid">${books.map((book) => `<button class="mini-card" data-book="${book.id}">${cover(book, true)}<small>${escapeHtml(book.title)}</small></button>`).join("") || empty("暂时没有")}</div>` : renderStatusCategory(books)}</article>`; }).join("")}</div></section>`;
+  return `<section class="status-board"><div class="toolbar"><p>每本书都可以随时回到任何阶段。</p><div class="segmented"><button class="${layout === "category" ? "active" : ""}" data-action="status-layout" data-layout="category">分类显示</button><button class="${layout === "cover" ? "active" : ""}" data-action="status-layout" data-layout="cover">封面显示</button></div></div><div class="status-columns">${statuses.map(([status, label]) => { const books = state.books.filter((book) => book.status === status); return `<article class="status-column"><header><h2>${label}</h2></header>${layout === "cover" ? `<div class="mini-cover-grid">${books.map((book) => `<button class="mini-card" data-book="${book.id}">${cover(book, true)}<small>${escapeHtml(book.title)}</small></button>`).join("") || empty("暂时没有")}</div>` : renderStatusCategory(books)}</article>`; }).join("")}</div></section>`;
 }
 
 function renderStatusCategory(books) {
