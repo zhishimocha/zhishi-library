@@ -171,7 +171,7 @@ function selectionControl(kind, id, label) {
 
 function bookRow(book, selectable = false) {
   const content = `${cover(book, true)}
-    <span class="book-row-copy"><strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author || "未署名")} · ${escapeHtml(book.category || "未分类")}</small></span>`;
+    <span class="book-row-copy"><strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author || "未署名")}</small></span>`;
   if (selectable) {
     return `<article class="book-row selectable-book">
     ${content}
@@ -185,7 +185,7 @@ function bookRow(book, selectable = false) {
 }
 
 function renderCoverBookCard(book, selectable = false) {
-  const content = `${cover(book)}<strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author || "未署名")}</small>`;
+  const content = `${cover(book)}<strong>${escapeHtml(book.title)}</strong>`;
   if (selectable) return `<article class="book-card selectable-book">${selectionControl("book", book.id, "选择这本书")}${content}</article>`;
   return `<button class="book-card" data-book="${book.id}">${content}</button>`;
 }
