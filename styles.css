@@ -340,6 +340,15 @@ select {
   gap: 8px;
 }
 
+.note-header-tools {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  min-width: min(460px, 100%);
+}
+
 .section-header .section-actions button {
   min-height: 36px;
   background: var(--paper);
@@ -682,14 +691,34 @@ select {
   gap: 12px;
 }
 
-.note-tools {
-  display: flex;
-  justify-content: flex-end;
-  margin: -4px 0 12px;
+.notes-tray {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  max-height: 540px;
+  overflow-y: auto;
+  padding-right: 8px;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--line) transparent;
+}
+
+.notes-tray::-webkit-scrollbar {
+  width: 8px;
+}
+
+.notes-tray::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.notes-tray::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.notes-tray .empty {
+  grid-column: 1 / -1;
 }
 
 .note-filter {
-  width: min(220px, 100%);
+  width: min(190px, 100%);
 }
 
 .note-filter select {
@@ -698,7 +727,9 @@ select {
 
 .note-card {
   display: grid;
+  align-content: start;
   gap: 10px;
+  min-height: 168px;
 }
 
 .note-card h3,
@@ -706,7 +737,18 @@ select {
   margin: 0;
 }
 
+.note-card h3 {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .note-card p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
   color: var(--muted);
   line-height: 1.65;
 }
@@ -1384,6 +1426,19 @@ textarea {
 
   .section-actions {
     justify-content: flex-start;
+  }
+
+  .note-header-tools,
+  .note-filter {
+    width: 100%;
+  }
+
+  .note-header-tools {
+    justify-content: flex-start;
+  }
+
+  .notes-tray {
+    max-height: 460px;
   }
 
   .card-toolbar {
