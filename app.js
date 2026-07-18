@@ -33,23 +33,65 @@ function isPreviewableAttachment(attachment = {}) {
   return /^(image\/(png|jpeg|webp|gif)|application\/pdf)$/i.test(attachment.type || "") || /\.(pdf|png|jpe?g|webp|gif)$/i.test(attachment.name || "");
 }
 
+function normalizeProgress(value) {
+  const number = Number(value);
+  return Number.isFinite(number) && number >= 0 ? number : 0;
+}
+
+function progressRatio(book = {}) {
+  const total = normalizeProgress(book.progressTotal);
+  if (!total) return 0;
+  return Math.min(normalizeProgress(book.progressCurrent) / total, 1);
+}
+
+function progressPercent(book = {}) {
+  return Math.round(progressRatio(book) * 100);
+}
+
+function progressText(book = {}) {
+  const total = normalizeProgress(book.progressTotal);
+  if (!total) return "未记录";
+  const current = normalizeProgress(book.progressCurrent);
+  const unit = String(book.progressUnit || "页").trim();
+  return `${current} / ${total}${unit ? ` ${unit}` : ""} · ${progressPercent(book)}%`;
+}
+
+function normalizeBook(book = {}) {
+  return {
+    ...book,
+    progressCurrent: normalizeProgress(book.progressCurrent),
+    progressTotal: normalizeProgress(book.progressTotal),
+    progressUnit: String(book.progressUnit || "页").trim() || "页",
+    dailyCards: Array.isArray(book.dailyCards) ? book.dailyCards : [],
+    notes: Array.isArray(book.notes) ? book.notes : [],
+  };
+}
+
+function normalizeLibraryState(library) {
+  return {
+    ...library,
+    books: (library.books || []).map(normalizeBook),
+    wishes: Array.isArray(library.wishes) ? library.wishes : [],
+  };
+}
+
 const starterState = {
   theme: "white",
-  route: { page: "home", view: "category", statusLayout: "category", sort: "lastRead", direction: "desc", deleteMode: "" },
+  route: { page: "home", view: "category", statusLayout: "category", sort: "lastRead", direction: "desc", deleteMode: "", noteFilter: "all" },
   categories: ["人物传记", "历史", "商业", "心理", "小说", "随笔"],
   books: [
     {
-      id: "book-1", title: "苏东坡传", author: "林语堂", category: "人物传记", startDate: "2026-07-10", source: "朋友推荐", reason: "想借一段不被得失困住的人生，重新校准自己的节奏。", firstImpression: "文字有一种很从容的光。", expectation: "读到他如何把困顿过成一种气象。", status: "reading", createdAt: "2026-07-10", lastRead: "2026-07-16", color: "sage",
+      id: "book-1", title: "苏东坡传", author: "林语堂", category: "人物传记", startDate: "2026-07-10", source: "朋友推荐", reason: "想借一段不被得失困住的人生，重新校准自己的节奏。", firstImpression: "文字有一种很从容的光。", expectation: "读到他如何把困顿过成一种气象。", status: "reading", createdAt: "2026-07-10", lastRead: "2026-07-16", color: "sage", progressCurrent: 23, progressTotal: 100, progressUnit: "页",
       dailyCards: [{ id: "card-1", date: "2026-07-16", position: "第一章", insight: "他好像总能把失意变成对生活更具体的热爱。", thought: "我羡慕的不是豁达，而是那种不急着证明自己的能力。", link: "想到最近刻意留出的散步时间。", tags: ["从容", "生活感"] }],
       notes: [{ id: "note-1", type: "金句", title: "做一个完整的人", content: "把读到的片段留在这里，等它们慢慢和生活发生关系。", createdAt: "2026-07-16" }],
     },
     {
-      id: "book-2", title: "置身事内", author: "兰小欢", category: "商业", startDate: "2026-06-26", source: "微信读书", reason: "想把新闻里零散的经济话题，放回一个更完整的框架。", firstImpression: "信息密度很高，但叙述并不生硬。", expectation: "理解地方经济运行的逻辑。", status: "pending", createdAt: "2026-06-26", lastRead: "2026-07-11", color: "ink",
+      id: "book-2", title: "置身事内", author: "兰小欢", category: "商业", startDate: "2026-06-26", source: "微信读书", reason: "想把新闻里零散的经济话题，放回一个更完整的框架。", firstImpression: "信息密度很高，但叙述并不生硬。", expectation: "理解地方经济运行的逻辑。", status: "pending", createdAt: "2026-06-26", lastRead: "2026-07-11", color: "ink", progressCurrent: 56, progressTotal: 100, progressUnit: "页",
       dailyCards: [{ id: "card-2", date: "2026-07-11", position: "第三章", insight: "很多看似局部的选择，背后是激励结构。", thought: "理解结构不是为了变得冷漠，而是为了少一点轻率判断。", link: "联想到城市规划的讨论。", tags: ["结构", "判断"] }],
       notes: [{ id: "note-2", type: "内容总结", title: "一个理解问题的框架", content: "先看参与者、资源和约束，再谈结果。", createdAt: "2026-07-12" }],
     },
     {
-      id: "book-3", title: "始于陌生的相遇", author: "佚名", category: "小说", startDate: "2026-05-18", source: "书店偶遇", reason: "被封面的安静感吸引。", firstImpression: "像一盏很晚才亮起的灯。", expectation: "留意它如何写人与人之间的距离。", status: "organized", createdAt: "2026-05-18", lastRead: "2026-06-02", color: "image",
+      id: "book-3", title: "始于陌生的相遇", author: "佚名", category: "小说", startDate: "2026-05-18", source: "书店偶遇", reason: "被封面的安静感吸引。", firstImpression: "像一盏很晚才亮起的灯。", expectation: "留意它如何写人与人之间的距离。", status: "organized", createdAt: "2026-05-18", lastRead: "2026-06-02", color: "image", progressCurrent: 100, progressTotal: 100, progressUnit: "页",
       dailyCards: [{ id: "card-3", date: "2026-06-02", position: "全书", insight: "关系并不总靠抵达来证明。", thought: "有些理解可以留白。", link: "想起很久未联系的一位朋友。", tags: ["关系"] }],
       notes: [{ id: "note-3", type: "自己的理解", title: "关于留白", content: "读完后仍然有些地方说不清，这也许正是它留给我的部分。", createdAt: "2026-06-03" }],
     },
@@ -65,9 +107,9 @@ let state = loadState();
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    return saved ? { ...starterState, ...saved, route: starterState.route } : structuredClone(starterState);
+    return normalizeLibraryState(saved ? { ...starterState, ...saved, route: starterState.route } : structuredClone(starterState));
   } catch {
-    return structuredClone(starterState);
+    return normalizeLibraryState(structuredClone(starterState));
   }
 }
 
@@ -225,6 +267,12 @@ function renderNoteCard(note, selectable = false) {
   return `<article class="note-card"><div class="card-toolbar"><span class="note-kind">${escapeHtml(note.type)}</span>${selection}</div><h3>${escapeHtml(note.title)}</h3>${note.content ? `<p>${escapeHtml(note.content)}</p>` : ""}${resources ? `<div class="note-card-actions">${resources}</div>` : ""}</article>`;
 }
 
+function renderNoteFilter(book, activeType) {
+  const types = [...new Set(book.notes.map((note) => note.type).filter(Boolean))];
+  if (types.length < 2) return "";
+  return `<div class="note-tools"><label class="note-filter"><span class="sr-only">整理区筛选</span><select data-control="note-filter" aria-label="整理区筛选"><option value="all" ${activeType === "all" ? "selected" : ""}>全部整理</option>${types.map((type) => `<option value="${escapeHtml(type)}" ${activeType === type ? "selected" : ""}>${escapeHtml(type)}</option>`).join("")}</select></label></div>`;
+}
+
 function renderAppShell(content, options = {}) {
   const { page = "home", title = "我的图书馆", subtitle = "让每本书留下它在你生命里的位置" } = options;
   const homeDeleteActive = page === "home" && state.route.deleteMode === "book";
@@ -261,11 +309,17 @@ function renderCoverView() {
   const sort = state.route.sort;
   const direction = state.route.direction;
   const sorted = [...state.books].sort((a, b) => {
-    const field = sort === "title" ? "title" : sort === "created" ? "createdAt" : "lastRead";
-    const value = String(a[field] || "").localeCompare(String(b[field] || ""), "zh-CN");
+    let value = 0;
+    if (sort === "progress") {
+      value = progressRatio(a) - progressRatio(b);
+      if (!value) value = String(a.title || "").localeCompare(String(b.title || ""), "zh-CN");
+    } else {
+      const field = sort === "title" ? "title" : sort === "created" ? "createdAt" : "lastRead";
+      value = String(a[field] || "").localeCompare(String(b[field] || ""), "zh-CN");
+    }
     return direction === "asc" ? value : -value;
   });
-  return `<section class="cover-view"><div class="toolbar"><div class="sorts"><label class="sort-select"><span class="sr-only">排序方式</span><select data-control="sort" aria-label="排序方式"><option value="lastRead" ${sort === "lastRead" ? "selected" : ""}>最后阅读</option><option value="created" ${sort === "created" ? "selected" : ""}>加入时间</option><option value="title" ${sort === "title" ? "selected" : ""}>书名</option></select></label><button class="quiet-button" data-action="direction">${direction === "asc" ? "↑ 升序" : "↓ 降序"}</button></div><span>无形书架，按你此刻的方式相遇。</span></div><div class="cover-grid">${sorted.map((book) => renderCoverBookCard(book, bookDeleteActive())).join("")}</div></section>`;
+  return `<section class="cover-view"><div class="toolbar"><div class="sorts"><label class="sort-select"><span class="sr-only">排序方式</span><select data-control="sort" aria-label="排序方式"><option value="lastRead" ${sort === "lastRead" ? "selected" : ""}>最后阅读</option><option value="created" ${sort === "created" ? "selected" : ""}>加入时间</option><option value="title" ${sort === "title" ? "selected" : ""}>书名</option><option value="progress" ${sort === "progress" ? "selected" : ""}>阅读进度</option></select></label><button class="quiet-button" data-action="direction">${direction === "asc" ? "↑ 升序" : "↓ 降序"}</button></div><span>无形书架，按你此刻的方式相遇。</span></div><div class="cover-grid">${sorted.map((book) => renderCoverBookCard(book, bookDeleteActive())).join("")}</div></section>`;
 }
 
 function renderStatusView() {
@@ -300,7 +354,12 @@ function renderBook(book) {
   const noteDeleteActive = state.route.deleteMode === "note";
   const dailyActions = renderSectionActions("daily", book.id, "add-daily", "+ 记一次阅读", cards.length > 0);
   const noteActions = renderSectionActions("note", book.id, "add-note", "+ 添加整理内容", book.notes.length > 0);
-  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div><button class="quiet-button" data-action="edit-book" data-book="${book.id}">编辑</button></div>${renderFirstMeetCard(book)}</section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div>${dailyActions}</div><div class="timeline">${cards.map((card) => renderDailyCard(card, dailyDeleteActive)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div>${noteActions}</div><div class="notes-grid">${book.notes.map((note) => renderNoteCard(note, noteDeleteActive)).join("") || empty("想法不必一次整理完，它们会慢慢长出来。")}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
+  const activeNoteFilter = state.route.noteFilter && book.notes.some((note) => note.type === state.route.noteFilter) ? state.route.noteFilter : "all";
+  const visibleNotes = activeNoteFilter === "all" ? book.notes : book.notes.filter((note) => note.type === activeNoteFilter);
+  const timelineClass = cards.length ? "timeline timeline-list" : "timeline";
+  const notesEmptyText = activeNoteFilter === "all" ? "想法不必一次整理完，它们会慢慢长出来。" : "这个类型下面暂时还没有整理内容。";
+  const percent = progressPercent(book);
+  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div><div class="progress-fact"><dt>阅读进度</dt><dd>${escapeHtml(progressText(book))}<span class="progress-meter" aria-hidden="true"><i style="width: ${percent}%"></i></span></dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div><button class="quiet-button" data-action="edit-book" data-book="${book.id}">编辑</button></div>${renderFirstMeetCard(book)}</section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div>${dailyActions}</div><div class="${timelineClass}">${cards.map((card) => renderDailyCard(card, dailyDeleteActive)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div>${noteActions}</div>${renderNoteFilter(book, activeNoteFilter)}<div class="notes-grid">${visibleNotes.map((note) => renderNoteCard(note, noteDeleteActive)).join("") || empty(notesEmptyText)}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
 }
 
 function renderWishes() {
@@ -358,7 +417,8 @@ function openAddMenu() {
 }
 
 function bookForm(book = {}) {
-  return `<form data-form="book" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(book.id || "")}"><label>书名<input required name="title" value="${escapeHtml(book.title || "")}" placeholder="例如：乔布斯传"></label><label>作者<input name="author" value="${escapeHtml(book.author || "")}" placeholder="作者"></label><label>分类<select name="category"><option value="">未分类</option>${options(state.categories, book.category)}</select></label><label>开始阅读日期<input type="date" name="startDate" value="${escapeHtml(book.startDate || today())}"></label><label>来源<input name="source" value="${escapeHtml(book.source || "")}" placeholder="书店、朋友推荐、微信读书…"></label><label>阅读阶段<select name="status"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><label class="span-2">为什么开始看<textarea name="reason" placeholder="那一刻，是什么让我翻开它？">${escapeHtml(book.reason || "")}</textarea></label><label class="span-2">第一印象<textarea name="firstImpression">${escapeHtml(book.firstImpression || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">保存</button></footer></form>`;
+  const normalizedBook = normalizeBook(book);
+  return `<form data-form="book" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(book.id || "")}"><label>书名<input required name="title" value="${escapeHtml(book.title || "")}" placeholder="例如：乔布斯传"></label><label>作者<input name="author" value="${escapeHtml(book.author || "")}" placeholder="作者"></label><label>分类<select name="category"><option value="">未分类</option>${options(state.categories, book.category)}</select></label><label>开始阅读日期<input type="date" name="startDate" value="${escapeHtml(book.startDate || today())}"></label><label>来源<input name="source" value="${escapeHtml(book.source || "")}" placeholder="书店、朋友推荐、微信读书…"></label><label>阅读阶段<select name="status"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><label>已读进度<input type="number" min="0" step="1" name="progressCurrent" value="${escapeHtml(normalizedBook.progressCurrent || "")}" placeholder="23"></label><label>总进度<input type="number" min="0" step="1" name="progressTotal" value="${escapeHtml(normalizedBook.progressTotal || "")}" placeholder="100"></label><label class="span-2">单位<input name="progressUnit" value="${escapeHtml(normalizedBook.progressUnit)}" placeholder="页、章、分钟"></label><label class="span-2">为什么开始看<textarea name="reason" placeholder="那一刻，是什么让我翻开它？">${escapeHtml(book.reason || "")}</textarea></label><label class="span-2">第一印象<textarea name="firstImpression">${escapeHtml(book.firstImpression || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">保存</button></footer></form>`;
 }
 
 function openBookForm(book) { openModal(book ? "编辑初见" : "新增一本书", bookForm(book)); }
@@ -376,7 +436,7 @@ function onAction(event) {
   const modalSurface = event.target.closest("[data-modal-surface]");
   if (modalSurface && !modalSurface.contains(target)) return;
   const action = target.dataset.action;
-  if (!action && target.dataset.book) { setRoute({ page: "book", bookId: target.dataset.book, deleteMode: "" }); return; }
+  if (!action && target.dataset.book) { setRoute({ page: "book", bookId: target.dataset.book, deleteMode: "", noteFilter: "all" }); return; }
   if (!action) return;
   if (action === "home") setRoute({ page: "home", query: "", deleteMode: "" });
   if (action === "wishes") setRoute({ page: "wishes", query: "", deleteMode: "" });
@@ -426,8 +486,8 @@ function startWish(wishId) {
   const index = state.wishes.findIndex((wish) => wish.id === wishId);
   if (index === -1) return;
   const wish = state.wishes.splice(index, 1)[0];
-  const book = { id: uid(), title: wish.title, author: wish.author, category: wish.category, source: wish.source, reason: wish.reason, startDate: today(), firstImpression: "", expectation: "", status: "reading", createdAt: today(), lastRead: today(), color: "rose", dailyCards: [], notes: [] };
-  state.books.unshift(book); saveState(); closeModal(); setRoute({ page: "book", bookId: book.id, deleteMode: "" });
+  const book = { id: uid(), title: wish.title, author: wish.author, category: wish.category, source: wish.source, reason: wish.reason, startDate: today(), firstImpression: "", expectation: "", status: "reading", createdAt: today(), lastRead: today(), color: "rose", progressCurrent: 0, progressTotal: 0, progressUnit: "页", dailyCards: [], notes: [] };
+  state.books.unshift(book); saveState(); closeModal(); setRoute({ page: "book", bookId: book.id, deleteMode: "", noteFilter: "all" });
 }
 
 function getSelectedItemIds(kind) {
@@ -520,9 +580,12 @@ async function onForm(event) {
   if (form.dataset.form === "search") { setRoute({ page: "search", query: data.query.trim(), deleteMode: "" }); return; }
   if (form.dataset.form === "book") {
     const existing = state.books.find((book) => book.id === data.id);
-    const record = { ...data, id: data.id || uid(), createdAt: existing?.createdAt || today(), lastRead: existing?.lastRead || today(), color: existing?.color || "rose", coverImage: existing?.coverImage, dailyCards: existing?.dailyCards || [], notes: existing?.notes || [] };
+    const progressCurrent = normalizeProgress(data.progressCurrent);
+    const progressTotal = normalizeProgress(data.progressTotal);
+    const progressUnit = String(data.progressUnit || "页").trim() || "页";
+    const record = normalizeBook({ ...data, progressCurrent, progressTotal, progressUnit, id: data.id || uid(), createdAt: existing?.createdAt || today(), lastRead: existing?.lastRead || today(), color: existing?.color || "rose", coverImage: existing?.coverImage, dailyCards: existing?.dailyCards || [], notes: existing?.notes || [] });
     if (existing) Object.assign(existing, record); else state.books.unshift(record);
-    saveState(); closeModal(); setRoute({ page: "book", bookId: record.id, deleteMode: "" });
+    saveState(); closeModal(); setRoute({ page: "book", bookId: record.id, deleteMode: "", noteFilter: "all" });
   }
   if (form.dataset.form === "wish") { const existing = state.wishes.find((wish) => wish.id === data.id); if (existing) Object.assign(existing, { ...existing, ...data }); else state.wishes.unshift({ ...data, id: uid(), createdAt: today() }); saveState(); closeModal(); render(); }
   if (form.dataset.form === "category") { const name = data.name.trim(); if (name && !state.categories.includes(name)) state.categories.push(name); saveState(); closeModal(); render(); }
@@ -554,6 +617,7 @@ document.addEventListener("click", onAction);
 document.addEventListener("submit", onForm);
 document.addEventListener("change", (event) => {
   if (event.target.dataset.control === "sort") setRoute({ sort: event.target.value });
+  if (event.target.dataset.control === "note-filter") setRoute({ noteFilter: event.target.value, deleteMode: "" });
   if (event.target.dataset.status) { const book = state.books.find((entry) => entry.id === event.target.dataset.status); if (book) { book.status = event.target.value; saveState(); render(); } }
   if (event.target.dataset.selectItem) updateBulkDeleteButton(event.target.dataset.selectItem);
 });

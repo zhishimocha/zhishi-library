@@ -542,6 +542,21 @@ select {
   gap: 12px;
 }
 
+.timeline-list {
+  position: relative;
+  padding-left: 22px;
+}
+
+.timeline-list::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 8px;
+  bottom: 8px;
+  width: 1px;
+  background: var(--line);
+}
+
 .first-meet-card,
 .daily-card,
 .note-card,
@@ -559,8 +574,22 @@ select {
 }
 
 .daily-card {
+  position: relative;
   display: grid;
   gap: 8px;
+}
+
+.timeline-list .daily-card::before {
+  content: "";
+  position: absolute;
+  left: -20px;
+  top: 19px;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--paper);
+  box-shadow: 0 0 0 4px var(--surface);
 }
 
 .card-toolbar {
@@ -627,6 +656,20 @@ select {
 .results-grid {
   display: grid;
   gap: 12px;
+}
+
+.note-tools {
+  display: flex;
+  justify-content: flex-end;
+  margin: -4px 0 12px;
+}
+
+.note-filter {
+  width: min(220px, 100%);
+}
+
+.note-filter select {
+  width: 100%;
 }
 
 .note-card {
@@ -1129,6 +1172,26 @@ textarea {
 .book-facts dd {
   font-size: 13px;
   margin: 5px 0 0;
+}
+
+.progress-fact {
+  grid-column: 1 / -1;
+}
+
+.progress-meter {
+  display: block;
+  height: 6px;
+  margin-top: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--paper-2);
+}
+
+.progress-meter i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
 }
 
 .field-grid span,
