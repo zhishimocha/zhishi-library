@@ -692,16 +692,19 @@ select {
 }
 
 .notes-tray {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  max-height: 540px;
-  overflow-y: auto;
-  padding-right: 8px;
+  grid-auto-flow: column;
+  grid-auto-columns: max(220px, calc((100% - 36px) / 4));
+  grid-template-columns: none;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 4px 12px 0;
   overscroll-behavior: contain;
+  scroll-snap-type: x proximity;
   scrollbar-color: var(--line) transparent;
 }
 
 .notes-tray::-webkit-scrollbar {
-  width: 8px;
+  height: 8px;
 }
 
 .notes-tray::-webkit-scrollbar-thumb {
@@ -714,7 +717,7 @@ select {
 }
 
 .notes-tray .empty {
-  grid-column: 1 / -1;
+  width: 100%;
 }
 
 .note-filter {
@@ -730,6 +733,8 @@ select {
   align-content: start;
   gap: 10px;
   min-height: 168px;
+  max-height: 240px;
+  scroll-snap-align: start;
 }
 
 .note-card h3,
@@ -765,6 +770,8 @@ select {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  max-width: 100%;
+  min-width: 0;
   min-height: 38px;
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -774,6 +781,9 @@ select {
   font-size: 13px;
   line-height: 1.2;
   text-decoration: none;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .note-resource-link:hover,
@@ -783,6 +793,7 @@ select {
 }
 
 .note-attachment-button small {
+  flex-shrink: 0;
   color: var(--muted);
   font-size: 11px;
 }
@@ -1438,7 +1449,7 @@ textarea {
   }
 
   .notes-tray {
-    max-height: 460px;
+    grid-auto-columns: minmax(220px, 82%);
   }
 
   .card-toolbar {

@@ -309,10 +309,11 @@ function renderDailyCard(card, bookId, selectable = false) {
 function renderNoteCard(note, bookId, selectable = false) {
   const resourceUrl = normalizeExternalUrl(note.resourceUrl);
   const attachment = note.attachment?.id ? note.attachment : null;
+  const attachmentLabel = note.attachmentTitle?.trim() || attachment?.name || "";
   const selection = selectable ? `<div class="card-toolbar-actions">${selectionControl("note", note.id, "选择这条整理内容")}</div>` : "";
   const resources = [
     resourceUrl ? `<a class="note-resource-link" href="${escapeHtml(resourceUrl)}" target="_blank" rel="noopener noreferrer">打开关联地址 ↗</a>` : "",
-    attachment ? `<button class="note-attachment-button" data-action="open-attachment" data-attachment="${escapeHtml(attachment.id)}" data-preview="${isPreviewableAttachment(attachment)}">${isPreviewableAttachment(attachment) ? "打开" : "下载"} ${escapeHtml(attachment.name)} <small>${formatFileSize(attachment.size)}</small></button>` : "",
+    attachment ? `<button class="note-attachment-button" data-action="open-attachment" data-attachment="${escapeHtml(attachment.id)}" data-preview="${isPreviewableAttachment(attachment)}">${isPreviewableAttachment(attachment) ? "打开" : "下载"} ${escapeHtml(attachmentLabel)} <small>${formatFileSize(attachment.size)}</small></button>` : "",
   ].filter(Boolean).join("");
   return `<article class="note-card editable-region" data-note-card="${escapeHtml(note.id)}" data-note-book="${escapeHtml(bookId)}"><div class="card-toolbar"><span class="note-kind">${escapeHtml(note.type)}</span>${selection}</div><h3>${escapeHtml(note.title)}</h3>${note.content ? `<p>${escapeHtml(note.content)}</p>` : ""}${resources ? `<div class="note-card-actions">${resources}</div>` : ""}</article>`;
 }
@@ -480,8 +481,10 @@ function openDailyForm(bookId, card = {}) {
 function openNoteForm(bookId, suggestedType = "长笔记", note = {}) {
   const types = ["思维导图", "人物关系", "时间线", "长笔记", "金句", "内容总结", "自己的理解", "关联书籍", "图片 / PDF"];
   const selectedType = note.type || suggestedType;
-  const attachmentHint = note.attachment?.name ? `<small>当前附件：${escapeHtml(note.attachment.name)}；重新选择文件会替换它。</small>` : "";
-  openModal(note.id ? "编辑整理内容" : "添加整理内容", `<form data-form="note" class="form-grid note-form"><input type="hidden" name="bookId" value="${escapeHtml(bookId)}"><input type="hidden" name="id" value="${escapeHtml(note.id || "")}"><label>类型<select name="type">${options(types, selectedType)}</select></label><label>标题<input required name="title" value="${escapeHtml(note.title || "")}" placeholder="给这份内容一个名字"></label><div class="span-2 form-field"><label for="note-resource-url">关联地址</label><span class="url-input-row"><input id="note-resource-url" type="text" inputmode="url" name="resourceUrl" value="${escapeHtml(note.resourceUrl || "")}" placeholder="chatgpt.com 或完整网址"><button type="button" class="quiet-button" data-action="open-note-url">打开地址</button></span></div><label class="span-2 attachment-field">导入附件<input type="file" name="attachment" accept=".xmind,.pdf,.opml,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf">${attachmentHint}</label><label class="span-2">文字补充<textarea name="content" placeholder="可选，补充说明这份整理内容。">${escapeHtml(note.content || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${note.id ? "保存修改" : "放入整理区"}</button></footer></form>`);
+  const attachmentTitle = note.attachmentTitle || "";
+  const currentAttachmentName = note.attachmentTitle?.trim() && note.attachment?.name ? `${note.attachmentTitle}（原文件：${note.attachment.name}）` : note.attachment?.name;
+  const attachmentHint = currentAttachmentName ? `<small>当前附件：${escapeHtml(currentAttachmentName)}；重新选择文件会替换它。</small>` : "";
+  openModal(note.id ? "编辑整理内容" : "添加整理内容", `<form data-form="note" class="form-grid note-form"><input type="hidden" name="bookId" value="${escapeHtml(bookId)}"><input type="hidden" name="id" value="${escapeHtml(note.id || "")}"><label>类型<select name="type">${options(types, selectedType)}</select></label><label>标题<input required name="title" value="${escapeHtml(note.title || "")}" placeholder="给这份内容一个名字"></label><div class="span-2 form-field"><label for="note-resource-url">关联地址</label><span class="url-input-row"><input id="note-resource-url" type="text" inputmode="url" name="resourceUrl" value="${escapeHtml(note.resourceUrl || "")}" placeholder="chatgpt.com 或完整网址"><button type="button" class="quiet-button" data-action="open-note-url">打开地址</button></span></div><label class="span-2 attachment-field">导入附件<input type="file" name="attachment" accept=".xmind,.pdf,.opml,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf">${attachmentHint}</label><label class="span-2">附件显示名<input name="attachmentTitle" value="${escapeHtml(attachmentTitle)}" placeholder="例如：第一章 ABCD 人物关系图"></label><label class="span-2">文字补充<textarea name="content" placeholder="可选，补充说明这份整理内容。">${escapeHtml(note.content || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${note.id ? "保存修改" : "放入整理区"}</button></footer></form>`);
 }
 
 function onAction(event) {
@@ -690,6 +693,7 @@ async function onForm(event) {
     const resourceUrl = normalizeExternalUrl(data.resourceUrl);
     const title = data.title.trim();
     const content = data.content.trim();
+    const attachmentTitle = (data.attachmentTitle || "").trim();
     const existing = book?.notes.find((note) => note.id === data.id);
     if (!title) { window.alert("请填写整理内容的标题。"); return; }
     if (data.resourceUrl && !resourceUrl) { window.alert("关联地址格式不正确，请检查后再试。"); return; }
@@ -699,7 +703,7 @@ async function onForm(event) {
       try {
         const oldAttachmentId = existing?.attachment?.id;
         const attachment = file ? await storeAttachment(file) : existing?.attachment;
-        const record = { id: data.id || uid(), type: data.type, title, content, resourceUrl, attachment, createdAt: existing?.createdAt || today() };
+        const record = { id: data.id || uid(), type: data.type, title, content, resourceUrl, attachment, attachmentTitle, createdAt: existing?.createdAt || today() };
         if (existing) Object.assign(existing, record);
         else book.notes.unshift(record);
         saveState(); closeModal(); render();
