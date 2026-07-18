@@ -303,10 +303,10 @@ function renderFirstMeetCard(book) {
 
 function renderDailyCard(card, bookId, selectable = false) {
   const selection = selectable ? `<div class="card-toolbar-actions">${selectionControl("daily", card.id, "选择这条阅读记录")}</div>` : "";
-  return `<article class="daily-card" data-daily-card="${escapeHtml(card.id)}" data-book="${escapeHtml(bookId)}"><div class="card-toolbar"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time>${selection}</div><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}</article>`;
+  return `<article class="daily-card" data-daily-card="${escapeHtml(card.id)}" data-daily-book="${escapeHtml(bookId)}"><div class="card-toolbar"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time>${selection}</div><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}</article>`;
 }
 
-function renderNoteCard(note, selectable = false) {
+function renderNoteCard(note, bookId, selectable = false) {
   const resourceUrl = normalizeExternalUrl(note.resourceUrl);
   const attachment = note.attachment?.id ? note.attachment : null;
   const selection = selectable ? `<div class="card-toolbar-actions">${selectionControl("note", note.id, "选择这条整理内容")}</div>` : "";
@@ -314,7 +314,7 @@ function renderNoteCard(note, selectable = false) {
     resourceUrl ? `<a class="note-resource-link" href="${escapeHtml(resourceUrl)}" target="_blank" rel="noopener noreferrer">打开关联地址 ↗</a>` : "",
     attachment ? `<button class="note-attachment-button" data-action="open-attachment" data-attachment="${escapeHtml(attachment.id)}" data-preview="${isPreviewableAttachment(attachment)}">${isPreviewableAttachment(attachment) ? "打开" : "下载"} ${escapeHtml(attachment.name)} <small>${formatFileSize(attachment.size)}</small></button>` : "",
   ].filter(Boolean).join("");
-  return `<article class="note-card"><div class="card-toolbar"><span class="note-kind">${escapeHtml(note.type)}</span>${selection}</div><h3>${escapeHtml(note.title)}</h3>${note.content ? `<p>${escapeHtml(note.content)}</p>` : ""}${resources ? `<div class="note-card-actions">${resources}</div>` : ""}</article>`;
+  return `<article class="note-card editable-region" data-note-card="${escapeHtml(note.id)}" data-note-book="${escapeHtml(bookId)}"><div class="card-toolbar"><span class="note-kind">${escapeHtml(note.type)}</span>${selection}</div><h3>${escapeHtml(note.title)}</h3>${note.content ? `<p>${escapeHtml(note.content)}</p>` : ""}${resources ? `<div class="note-card-actions">${resources}</div>` : ""}</article>`;
 }
 
 function renderNoteFilter(book, activeType) {
@@ -409,7 +409,7 @@ function renderBook(book) {
   const timelineClass = cards.length ? "timeline timeline-list" : "timeline";
   const notesEmptyText = activeNoteFilter === "all" ? "想法不必一次整理完，它们会慢慢长出来。" : "这个类型下面暂时还没有整理内容。";
   const percent = progressPercent(book);
-  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div><div class="progress-fact"><dt>阅读进度</dt><dd>${escapeHtml(progressText(book))}<span class="progress-meter" aria-hidden="true"><i style="width: ${percent}%"></i></span></dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div></div>${renderFirstMeetCard(book)}</section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div>${dailyActions}</div><div class="${timelineClass}">${cards.map((card) => renderDailyCard(card, book.id, dailyDeleteActive)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div>${noteActions}</div>${renderNoteFilter(book, activeNoteFilter)}<div class="notes-grid">${visibleNotes.map((note) => renderNoteCard(note, noteDeleteActive)).join("") || empty(notesEmptyText)}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
+  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div><div class="progress-fact"><dt>阅读进度</dt><dd>${escapeHtml(progressText(book))}<span class="progress-meter" aria-hidden="true"><i style="width: ${percent}%"></i></span></dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div></div>${renderFirstMeetCard(book)}</section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div>${dailyActions}</div><div class="${timelineClass}">${cards.map((card) => renderDailyCard(card, book.id, dailyDeleteActive)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div>${noteActions}</div>${renderNoteFilter(book, activeNoteFilter)}<div class="notes-grid">${visibleNotes.map((note) => renderNoteCard(note, book.id, noteDeleteActive)).join("") || empty(notesEmptyText)}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
 }
 
 function renderWishes() {
@@ -476,9 +476,11 @@ function openCategoryForm() { openModal("新增分类", `<form data-form="catego
 function openDailyForm(bookId, card = {}) {
   openModal(card.id ? "编辑每日卡片" : "新增每日卡片", `<form data-form="daily" class="form-grid"><input type="hidden" name="bookId" value="${escapeHtml(bookId)}"><input type="hidden" name="id" value="${escapeHtml(card.id || "")}"><label>日期<input type="date" name="date" value="${escapeHtml(card.date || today())}"></label><label>阅读位置 / 进度<input name="position" value="${escapeHtml(card.position || "")}" placeholder="23/100，之后可写 43"></label><label class="span-2">💎 今日最有意思的一点<textarea required name="insight" placeholder="用一句话留住它。">${escapeHtml(card.insight || "")}</textarea></label><label class="span-2">💭 我的想法<textarea name="thought" placeholder="这让我想到什么？">${escapeHtml(card.thought || "")}</textarea></label><label class="span-2">🔗 联想到什么<textarea name="link" placeholder="人、事、旧笔记，或另一本书。">${escapeHtml(card.link || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${card.id ? "保存修改" : "收下这次阅读"}</button></footer></form>`);
 }
-function openNoteForm(bookId, suggestedType = "长笔记") {
+function openNoteForm(bookId, suggestedType = "长笔记", note = {}) {
   const types = ["思维导图", "人物关系", "时间线", "长笔记", "金句", "内容总结", "自己的理解", "关联书籍", "图片 / PDF"];
-  openModal("添加整理内容", `<form data-form="note" class="form-grid note-form"><input type="hidden" name="bookId" value="${bookId}"><label>类型<select name="type">${options(types, suggestedType)}</select></label><label>标题<input required name="title" placeholder="给这份内容一个名字"></label><div class="span-2 form-field"><label for="note-resource-url">关联地址</label><span class="url-input-row"><input id="note-resource-url" type="text" inputmode="url" name="resourceUrl" placeholder="chatgpt.com 或完整网址"><button type="button" class="quiet-button" data-action="open-note-url">打开地址</button></span></div><label class="span-2 attachment-field">导入附件<input type="file" name="attachment" accept=".xmind,.pdf,.opml,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf"></label><label class="span-2">文字补充<textarea name="content" placeholder="可选，补充说明这份整理内容。"></textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">放入整理区</button></footer></form>`);
+  const selectedType = note.type || suggestedType;
+  const attachmentHint = note.attachment?.name ? `<small>当前附件：${escapeHtml(note.attachment.name)}；重新选择文件会替换它。</small>` : "";
+  openModal(note.id ? "编辑整理内容" : "添加整理内容", `<form data-form="note" class="form-grid note-form"><input type="hidden" name="bookId" value="${escapeHtml(bookId)}"><input type="hidden" name="id" value="${escapeHtml(note.id || "")}"><label>类型<select name="type">${options(types, selectedType)}</select></label><label>标题<input required name="title" value="${escapeHtml(note.title || "")}" placeholder="给这份内容一个名字"></label><div class="span-2 form-field"><label for="note-resource-url">关联地址</label><span class="url-input-row"><input id="note-resource-url" type="text" inputmode="url" name="resourceUrl" value="${escapeHtml(note.resourceUrl || "")}" placeholder="chatgpt.com 或完整网址"><button type="button" class="quiet-button" data-action="open-note-url">打开地址</button></span></div><label class="span-2 attachment-field">导入附件<input type="file" name="attachment" accept=".xmind,.pdf,.opml,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf">${attachmentHint}</label><label class="span-2">文字补充<textarea name="content" placeholder="可选，补充说明这份整理内容。">${escapeHtml(note.content || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${note.id ? "保存修改" : "放入整理区"}</button></footer></form>`);
 }
 
 function onAction(event) {
@@ -525,9 +527,16 @@ function onDoubleClick(event) {
   if (event.target.closest("button, input, select, textarea, a, label")) return;
   const dailyCard = event.target.closest("[data-daily-card]");
   if (dailyCard && state.route.deleteMode !== "daily") {
-    const book = state.books.find((entry) => entry.id === dailyCard.dataset.book);
+    const book = state.books.find((entry) => entry.id === dailyCard.dataset.dailyBook);
     const card = book?.dailyCards.find((entry) => entry.id === dailyCard.dataset.dailyCard);
     if (book && card) openDailyForm(book.id, card);
+    return;
+  }
+  const noteCard = event.target.closest("[data-note-card]");
+  if (noteCard && state.route.deleteMode !== "note") {
+    const book = state.books.find((entry) => entry.id === noteCard.dataset.noteBook);
+    const note = book?.notes.find((entry) => entry.id === noteCard.dataset.noteCard);
+    if (book && note) openNoteForm(book.id, note.type, note);
     return;
   }
   const bookRegion = event.target.closest(".first-meet-card[data-book-id]");
@@ -680,15 +689,20 @@ async function onForm(event) {
     const resourceUrl = normalizeExternalUrl(data.resourceUrl);
     const title = data.title.trim();
     const content = data.content.trim();
+    const existing = book?.notes.find((note) => note.id === data.id);
     if (!title) { window.alert("请填写整理内容的标题。"); return; }
     if (data.resourceUrl && !resourceUrl) { window.alert("关联地址格式不正确，请检查后再试。"); return; }
-    if (!content && !resourceUrl && !file) { window.alert("请填写文字、关联地址或导入一个附件。"); return; }
+    if (!content && !resourceUrl && !file && !existing?.attachment) { window.alert("请填写文字、关联地址或导入一个附件。"); return; }
     if (file?.size > MAX_ATTACHMENT_SIZE) { window.alert("单个附件请不要超过 25 MB。"); return; }
     if (book) {
       try {
-        const attachment = file ? await storeAttachment(file) : undefined;
-        book.notes.unshift({ id: uid(), type: data.type, title, content, resourceUrl, attachment, createdAt: today() });
+        const oldAttachmentId = existing?.attachment?.id;
+        const attachment = file ? await storeAttachment(file) : existing?.attachment;
+        const record = { id: data.id || uid(), type: data.type, title, content, resourceUrl, attachment, createdAt: existing?.createdAt || today() };
+        if (existing) Object.assign(existing, record);
+        else book.notes.unshift(record);
         saveState(); closeModal(); render();
+        if (file && oldAttachmentId) deleteStoredAttachment(oldAttachmentId).catch(() => {});
       } catch {
         window.alert("附件保存失败，请换一个文件或稍后再试。");
       }
