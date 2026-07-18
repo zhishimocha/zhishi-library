@@ -6,6 +6,7 @@ const $ = (selector, parent = document) => parent.querySelector(selector);
 
 const today = () => new Date().toISOString().slice(0, 10);
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
+const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 const escapeHtml = (value = "") => String(value).replace(/[&<>\"']/g, (character) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
 }[character]));
@@ -50,10 +51,59 @@ function progressPercent(book = {}) {
 
 function progressText(book = {}) {
   const total = normalizeProgress(book.progressTotal);
-  if (!total) return "未记录";
   const current = normalizeProgress(book.progressCurrent);
-  const unit = String(book.progressUnit || "页").trim();
+  const unit = normalizeProgressUnit(book.progressUnit);
+  if (!total) return current ? `读到 ${current} ${unit}` : "未记录";
   return `${current} / ${total}${unit ? ` ${unit}` : ""} · ${progressPercent(book)}%`;
+}
+
+function normalizeProgressUnit(value = "页") {
+  return String(value || "页").trim() || "页";
+}
+
+function normalizePositionText(value = "") {
+  return String(value).trim()
+    .replace(/[０-９]/g, (digit) => String.fromCharCode(digit.charCodeAt(0) - 0xfee0))
+    .replace(/[／⁄]/g, "/");
+}
+
+function inferProgressUnit(text = "", fallback = "页") {
+  if (/章|chapter|ch\./i.test(text)) return "章";
+  if (/页|p(?:age)?s?\.?/i.test(text)) return "页";
+  return normalizeProgressUnit(fallback);
+}
+
+function parseProgressPosition(position, book = {}) {
+  const text = normalizePositionText(position);
+  if (!text) return null;
+  const pair = text.match(/(\d+(?:\.\d+)?)\s*(?:页|章|p(?:age)?s?\.?)?\s*\/\s*(\d+(?:\.\d+)?)/i);
+  if (pair) {
+    const total = normalizeProgress(pair[2]);
+    if (!total) return null;
+    return { current: normalizeProgress(pair[1]), total, unit: inferProgressUnit(text, book.progressUnit) };
+  }
+  const explicitUnit = text.match(/(?:^|[^\d.])(\d+(?:\.\d+)?)\s*(页|章|p(?:age)?s?\.?)(?:\s|$)/i);
+  if (explicitUnit) return { current: normalizeProgress(explicitUnit[1]), unit: inferProgressUnit(explicitUnit[2], book.progressUnit) };
+  if (/^\d+(?:\.\d+)?$/.test(text)) return { current: normalizeProgress(text), unit: normalizeProgressUnit(book.progressUnit) };
+  return null;
+}
+
+function applyProgressFromPosition(book, position) {
+  const progress = parseProgressPosition(position, book);
+  if (!progress) return false;
+  book.progressCurrent = progress.current;
+  if (progress.total !== undefined) book.progressTotal = progress.total;
+  book.progressUnit = progress.unit || normalizeProgressUnit(book.progressUnit);
+  return true;
+}
+
+function rebuildProgressFromDailyCards(book) {
+  const rebuilt = { progressCurrent: 0, progressTotal: normalizeProgress(book.progressTotal), progressUnit: normalizeProgressUnit(book.progressUnit) };
+  const sortedCards = [...book.dailyCards].sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")) || String(a.id || "").localeCompare(String(b.id || "")));
+  const hasProgress = sortedCards.reduce((found, card) => applyProgressFromPosition(rebuilt, card.position) || found, false);
+  book.progressCurrent = hasProgress ? rebuilt.progressCurrent : 0;
+  book.progressTotal = hasProgress ? rebuilt.progressTotal : 0;
+  book.progressUnit = hasProgress ? rebuilt.progressUnit : normalizeProgressUnit(book.progressUnit);
 }
 
 function normalizeBook(book = {}) {
@@ -61,7 +111,7 @@ function normalizeBook(book = {}) {
     ...book,
     progressCurrent: normalizeProgress(book.progressCurrent),
     progressTotal: normalizeProgress(book.progressTotal),
-    progressUnit: String(book.progressUnit || "页").trim() || "页",
+    progressUnit: normalizeProgressUnit(book.progressUnit),
     dailyCards: Array.isArray(book.dailyCards) ? book.dailyCards : [],
     notes: Array.isArray(book.notes) ? book.notes : [],
   };
@@ -82,17 +132,17 @@ const starterState = {
   books: [
     {
       id: "book-1", title: "苏东坡传", author: "林语堂", category: "人物传记", startDate: "2026-07-10", source: "朋友推荐", reason: "想借一段不被得失困住的人生，重新校准自己的节奏。", firstImpression: "文字有一种很从容的光。", expectation: "读到他如何把困顿过成一种气象。", status: "reading", createdAt: "2026-07-10", lastRead: "2026-07-16", color: "sage", progressCurrent: 23, progressTotal: 100, progressUnit: "页",
-      dailyCards: [{ id: "card-1", date: "2026-07-16", position: "第一章", insight: "他好像总能把失意变成对生活更具体的热爱。", thought: "我羡慕的不是豁达，而是那种不急着证明自己的能力。", link: "想到最近刻意留出的散步时间。", tags: ["从容", "生活感"] }],
+      dailyCards: [{ id: "card-1", date: "2026-07-16", position: "第一章", insight: "他好像总能把失意变成对生活更具体的热爱。", thought: "我羡慕的不是豁达，而是那种不急着证明自己的能力。", link: "想到最近刻意留出的散步时间。" }],
       notes: [{ id: "note-1", type: "金句", title: "做一个完整的人", content: "把读到的片段留在这里，等它们慢慢和生活发生关系。", createdAt: "2026-07-16" }],
     },
     {
       id: "book-2", title: "置身事内", author: "兰小欢", category: "商业", startDate: "2026-06-26", source: "微信读书", reason: "想把新闻里零散的经济话题，放回一个更完整的框架。", firstImpression: "信息密度很高，但叙述并不生硬。", expectation: "理解地方经济运行的逻辑。", status: "pending", createdAt: "2026-06-26", lastRead: "2026-07-11", color: "ink", progressCurrent: 56, progressTotal: 100, progressUnit: "页",
-      dailyCards: [{ id: "card-2", date: "2026-07-11", position: "第三章", insight: "很多看似局部的选择，背后是激励结构。", thought: "理解结构不是为了变得冷漠，而是为了少一点轻率判断。", link: "联想到城市规划的讨论。", tags: ["结构", "判断"] }],
+      dailyCards: [{ id: "card-2", date: "2026-07-11", position: "第三章", insight: "很多看似局部的选择，背后是激励结构。", thought: "理解结构不是为了变得冷漠，而是为了少一点轻率判断。", link: "联想到城市规划的讨论。" }],
       notes: [{ id: "note-2", type: "内容总结", title: "一个理解问题的框架", content: "先看参与者、资源和约束，再谈结果。", createdAt: "2026-07-12" }],
     },
     {
       id: "book-3", title: "始于陌生的相遇", author: "佚名", category: "小说", startDate: "2026-05-18", source: "书店偶遇", reason: "被封面的安静感吸引。", firstImpression: "像一盏很晚才亮起的灯。", expectation: "留意它如何写人与人之间的距离。", status: "organized", createdAt: "2026-05-18", lastRead: "2026-06-02", color: "image", progressCurrent: 100, progressTotal: 100, progressUnit: "页",
-      dailyCards: [{ id: "card-3", date: "2026-06-02", position: "全书", insight: "关系并不总靠抵达来证明。", thought: "有些理解可以留白。", link: "想起很久未联系的一位朋友。", tags: ["关系"] }],
+      dailyCards: [{ id: "card-3", date: "2026-06-02", position: "全书", insight: "关系并不总靠抵达来证明。", thought: "有些理解可以留白。", link: "想起很久未联系的一位朋友。" }],
       notes: [{ id: "note-3", type: "自己的理解", title: "关于留白", content: "读完后仍然有些地方说不清，这也许正是它留给我的部分。", createdAt: "2026-06-03" }],
     },
   ],
@@ -253,7 +303,7 @@ function renderFirstMeetCard(book) {
 
 function renderDailyCard(card, selectable = false) {
   const selection = selectable ? `<div class="card-toolbar-actions">${selectionControl("daily", card.id, "选择这条阅读记录")}</div>` : "";
-  return `<article class="daily-card"><div class="card-toolbar"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time>${selection}</div><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}${card.tags?.length ? `<div class="chips">${card.tags.map((tag) => `<span class="chip"># ${escapeHtml(tag)}</span>`).join("")}</div>` : ""}</article>`;
+  return `<article class="daily-card"><div class="card-toolbar"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time>${selection}</div><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}</article>`;
 }
 
 function renderNoteCard(note, selectable = false) {
@@ -374,7 +424,7 @@ function renderSearch(query) {
 }
 
 function searchExcerpt(book, query) {
-  const corpus = [book.reason, book.firstImpression, book.expectation, ...book.dailyCards.flatMap((card) => [card.insight, card.thought, card.link, ...(card.tags || [])]), ...book.notes.flatMap((note) => [note.title, note.content])].filter(Boolean).join(" · ");
+  const corpus = [book.reason, book.firstImpression, book.expectation, ...book.dailyCards.flatMap((card) => [card.insight, card.thought, card.link]), ...book.notes.flatMap((note) => [note.title, note.content])].filter(Boolean).join(" · ");
   const index = corpus.toLocaleLowerCase().indexOf(query.toLocaleLowerCase());
   return index > -1 ? `${index > 26 ? "…" : ""}${corpus.slice(Math.max(0, index - 26), index + query.length + 55)}${corpus.length > index + query.length + 55 ? "…" : ""}` : "书名、作者或分类中匹配";
 }
@@ -417,14 +467,13 @@ function openAddMenu() {
 }
 
 function bookForm(book = {}) {
-  const normalizedBook = normalizeBook(book);
-  return `<form data-form="book" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(book.id || "")}"><label>书名<input required name="title" value="${escapeHtml(book.title || "")}" placeholder="例如：乔布斯传"></label><label>作者<input name="author" value="${escapeHtml(book.author || "")}" placeholder="作者"></label><label>分类<select name="category"><option value="">未分类</option>${options(state.categories, book.category)}</select></label><label>开始阅读日期<input type="date" name="startDate" value="${escapeHtml(book.startDate || today())}"></label><label>来源<input name="source" value="${escapeHtml(book.source || "")}" placeholder="书店、朋友推荐、微信读书…"></label><label>阅读阶段<select name="status"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><label>已读进度<input type="number" min="0" step="1" name="progressCurrent" value="${escapeHtml(normalizedBook.progressCurrent || "")}" placeholder="23"></label><label>总进度<input type="number" min="0" step="1" name="progressTotal" value="${escapeHtml(normalizedBook.progressTotal || "")}" placeholder="100"></label><label class="span-2">单位<input name="progressUnit" value="${escapeHtml(normalizedBook.progressUnit)}" placeholder="页、章、分钟"></label><label class="span-2">为什么开始看<textarea name="reason" placeholder="那一刻，是什么让我翻开它？">${escapeHtml(book.reason || "")}</textarea></label><label class="span-2">第一印象<textarea name="firstImpression">${escapeHtml(book.firstImpression || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">保存</button></footer></form>`;
+  return `<form data-form="book" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(book.id || "")}"><label>书名<input required name="title" value="${escapeHtml(book.title || "")}" placeholder="例如：乔布斯传"></label><label>作者<input name="author" value="${escapeHtml(book.author || "")}" placeholder="作者"></label><label>分类<select name="category"><option value="">未分类</option>${options(state.categories, book.category)}</select></label><label>开始阅读日期<input type="date" name="startDate" value="${escapeHtml(book.startDate || today())}"></label><label>来源<input name="source" value="${escapeHtml(book.source || "")}" placeholder="书店、朋友推荐、微信读书…"></label><label>阅读阶段<select name="status"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><label class="span-2">为什么开始看<textarea name="reason" placeholder="那一刻，是什么让我翻开它？">${escapeHtml(book.reason || "")}</textarea></label><label class="span-2">第一印象<textarea name="firstImpression">${escapeHtml(book.firstImpression || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">保存</button></footer></form>`;
 }
 
 function openBookForm(book) { openModal(book ? "编辑初见" : "新增一本书", bookForm(book)); }
 function openWishForm(wish = {}) { openModal(wish.id ? "编辑愿望" : "放进愿望池", `<form data-form="wish" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(wish.id || "")}"><label>书名<input required name="title" value="${escapeHtml(wish.title || "")}" placeholder="想读的书"></label><label>作者<input name="author" value="${escapeHtml(wish.author || "")}" placeholder="作者"></label><label>分类<select name="category"><option value="">未分类</option>${options(state.categories, wish.category)}</select></label><label>期待程度<select name="priority"><option value="high" ${wish.priority === "high" ? "selected" : ""}>❤️ 很想看</option><option value="medium" ${wish.priority === "medium" ? "selected" : ""}>💛 一般</option><option value="low" ${wish.priority === "low" ? "selected" : ""}>🤍 随缘</option></select></label><label class="span-2">为什么想看<textarea name="reason" placeholder="可选，留给未来的自己。">${escapeHtml(wish.reason || "")}</textarea></label><label class="span-2">来源<input name="source" value="${escapeHtml(wish.source || "")}" placeholder="微信读书、小红书、朋友推荐…"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${wish.id ? "保存修改" : "放进愿望池"}</button></footer></form>`); }
 function openCategoryForm() { openModal("新增分类", `<form data-form="category" class="form-grid"><label>分类名称<input required name="name" placeholder="例如：哲学"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">添加</button></footer></form>`); }
-function openDailyForm(bookId) { openModal("新增每日卡片", `<form data-form="daily" class="form-grid"><input type="hidden" name="bookId" value="${bookId}"><label>日期<input type="date" name="date" value="${today()}"></label><label>阅读位置<input name="position" placeholder="章节、页码"></label><label class="span-2">💎 今日最有意思的一点<textarea required name="insight" placeholder="用一句话留住它。"></textarea></label><label class="span-2">💭 我的想法<textarea name="thought" placeholder="这让我想到什么？"></textarea></label><label class="span-2">🔗 联想到什么<textarea name="link" placeholder="人、事、旧笔记，或另一本书。"></textarea></label><label class="span-2">标签<input name="tags" placeholder="用逗号分开，可选"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">收下这次阅读</button></footer></form>`); }
+function openDailyForm(bookId) { openModal("新增每日卡片", `<form data-form="daily" class="form-grid"><input type="hidden" name="bookId" value="${bookId}"><label>日期<input type="date" name="date" value="${today()}"></label><label>阅读位置 / 进度<input name="position" placeholder="23/100，之后可写 43"></label><label class="span-2">💎 今日最有意思的一点<textarea required name="insight" placeholder="用一句话留住它。"></textarea></label><label class="span-2">💭 我的想法<textarea name="thought" placeholder="这让我想到什么？"></textarea></label><label class="span-2">🔗 联想到什么<textarea name="link" placeholder="人、事、旧笔记，或另一本书。"></textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">收下这次阅读</button></footer></form>`); }
 function openNoteForm(bookId, suggestedType = "长笔记") {
   const types = ["思维导图", "人物关系", "时间线", "长笔记", "金句", "内容总结", "自己的理解", "关联书籍", "图片 / PDF"];
   openModal("添加整理内容", `<form data-form="note" class="form-grid note-form"><input type="hidden" name="bookId" value="${bookId}"><label>类型<select name="type">${options(types, suggestedType)}</select></label><label>标题<input required name="title" placeholder="给这份内容一个名字"></label><div class="span-2 form-field"><label for="note-resource-url">关联地址</label><span class="url-input-row"><input id="note-resource-url" type="text" inputmode="url" name="resourceUrl" placeholder="chatgpt.com 或完整网址"><button type="button" class="quiet-button" data-action="open-note-url">打开地址</button></span></div><label class="span-2 attachment-field">导入附件<input type="file" name="attachment" accept=".xmind,.pdf,.opml,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf"></label><label class="span-2">文字补充<textarea name="content" placeholder="可选，补充说明这份整理内容。"></textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">放入整理区</button></footer></form>`);
@@ -527,8 +576,10 @@ function deleteDailyCards(bookId, cardIds) {
   if (!count) return;
   const message = count === 1 ? "确定删除这条阅读记录吗？" : `确定删除选中的 ${count} 条阅读记录吗？`;
   if (!window.confirm(message)) return;
+  const shouldRebuildProgress = book.dailyCards.some((card) => parseProgressPosition(card.position, book));
   book.dailyCards = book.dailyCards.filter((card) => !ids.has(card.id));
   updateLastReadFromCards(book);
+  if (shouldRebuildProgress) rebuildProgressFromDailyCards(book);
   state.route.deleteMode = "";
   saveState();
   render();
@@ -580,16 +631,16 @@ async function onForm(event) {
   if (form.dataset.form === "search") { setRoute({ page: "search", query: data.query.trim(), deleteMode: "" }); return; }
   if (form.dataset.form === "book") {
     const existing = state.books.find((book) => book.id === data.id);
-    const progressCurrent = normalizeProgress(data.progressCurrent);
-    const progressTotal = normalizeProgress(data.progressTotal);
-    const progressUnit = String(data.progressUnit || "页").trim() || "页";
+    const progressCurrent = hasOwn(data, "progressCurrent") ? normalizeProgress(data.progressCurrent) : normalizeProgress(existing?.progressCurrent);
+    const progressTotal = hasOwn(data, "progressTotal") ? normalizeProgress(data.progressTotal) : normalizeProgress(existing?.progressTotal);
+    const progressUnit = hasOwn(data, "progressUnit") ? normalizeProgressUnit(data.progressUnit) : normalizeProgressUnit(existing?.progressUnit);
     const record = normalizeBook({ ...data, progressCurrent, progressTotal, progressUnit, id: data.id || uid(), createdAt: existing?.createdAt || today(), lastRead: existing?.lastRead || today(), color: existing?.color || "rose", coverImage: existing?.coverImage, dailyCards: existing?.dailyCards || [], notes: existing?.notes || [] });
     if (existing) Object.assign(existing, record); else state.books.unshift(record);
     saveState(); closeModal(); setRoute({ page: "book", bookId: record.id, deleteMode: "", noteFilter: "all" });
   }
   if (form.dataset.form === "wish") { const existing = state.wishes.find((wish) => wish.id === data.id); if (existing) Object.assign(existing, { ...existing, ...data }); else state.wishes.unshift({ ...data, id: uid(), createdAt: today() }); saveState(); closeModal(); render(); }
   if (form.dataset.form === "category") { const name = data.name.trim(); if (name && !state.categories.includes(name)) state.categories.push(name); saveState(); closeModal(); render(); }
-  if (form.dataset.form === "daily") { const book = state.books.find((entry) => entry.id === data.bookId); if (book) { book.dailyCards.push({ ...data, id: uid(), tags: data.tags.split(/[，,]/).map((tag) => tag.trim()).filter(Boolean) }); book.lastRead = data.date; saveState(); closeModal(); render(); } }
+  if (form.dataset.form === "daily") { const book = state.books.find((entry) => entry.id === data.bookId); if (book) { const card = { ...data, id: uid() }; book.dailyCards.push(card); book.lastRead = data.date; applyProgressFromPosition(book, card.position); saveState(); closeModal(); render(); } }
   if (form.dataset.form === "note") {
     const book = state.books.find((entry) => entry.id === data.bookId);
     const file = form.elements.attachment.files[0];
