@@ -544,7 +544,13 @@ select {
 
 .timeline-list {
   position: relative;
+  --daily-card-preview-height: 170px;
+  max-height: calc((var(--daily-card-preview-height) * 2) + 12px);
+  overflow-y: auto;
   padding-left: 22px;
+  padding-right: 8px;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--line) transparent;
 }
 
 .timeline-list::before {
@@ -555,6 +561,19 @@ select {
   bottom: 8px;
   width: 1px;
   background: var(--line);
+}
+
+.timeline-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.timeline-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.timeline-list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .first-meet-card,
@@ -573,10 +592,15 @@ select {
   gap: 12px;
 }
 
+.editable-region {
+  cursor: text;
+}
+
 .daily-card {
   position: relative;
   display: grid;
   gap: 8px;
+  min-height: var(--daily-card-preview-height, 170px);
 }
 
 .timeline-list .daily-card::before {

@@ -298,12 +298,12 @@ function bookDeleteActive() {
 }
 
 function renderFirstMeetCard(book) {
-  return `<article class="first-meet-card field-grid"><div><span>为什么开始看</span><p>${escapeHtml(book.reason || "还没有写下这个答案。")}</p></div><div><span>第一印象</span><p>${escapeHtml(book.firstImpression || "还没有写下第一印象。")}</p></div></article>`;
+  return `<article class="first-meet-card field-grid editable-region" data-book-id="${escapeHtml(book.id)}"><div><span>为什么开始看</span><p>${escapeHtml(book.reason || "还没有写下这个答案。")}</p></div><div><span>第一印象</span><p>${escapeHtml(book.firstImpression || "还没有写下第一印象。")}</p></div></article>`;
 }
 
-function renderDailyCard(card, selectable = false) {
+function renderDailyCard(card, bookId, selectable = false) {
   const selection = selectable ? `<div class="card-toolbar-actions">${selectionControl("daily", card.id, "选择这条阅读记录")}</div>` : "";
-  return `<article class="daily-card"><div class="card-toolbar"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time>${selection}</div><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}</article>`;
+  return `<article class="daily-card" data-daily-card="${escapeHtml(card.id)}" data-book="${escapeHtml(bookId)}"><div class="card-toolbar"><time>${formatDate(card.date)} · ${escapeHtml(card.position || "未标记位置")}</time>${selection}</div><h3>💎 ${escapeHtml(card.insight || "今日最有意思的一点")}</h3><p><b>💭</b> ${escapeHtml(card.thought || "")}</p>${card.link ? `<p><b>🔗</b> ${escapeHtml(card.link)}</p>` : ""}</article>`;
 }
 
 function renderNoteCard(note, selectable = false) {
@@ -409,12 +409,12 @@ function renderBook(book) {
   const timelineClass = cards.length ? "timeline timeline-list" : "timeline";
   const notesEmptyText = activeNoteFilter === "all" ? "想法不必一次整理完，它们会慢慢长出来。" : "这个类型下面暂时还没有整理内容。";
   const percent = progressPercent(book);
-  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div><div class="progress-fact"><dt>阅读进度</dt><dd>${escapeHtml(progressText(book))}<span class="progress-meter" aria-hidden="true"><i style="width: ${percent}%"></i></span></dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div><button class="quiet-button" data-action="edit-book" data-book="${book.id}">编辑</button></div>${renderFirstMeetCard(book)}</section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div>${dailyActions}</div><div class="${timelineClass}">${cards.map((card) => renderDailyCard(card, dailyDeleteActive)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div>${noteActions}</div>${renderNoteFilter(book, activeNoteFilter)}<div class="notes-grid">${visibleNotes.map((note) => renderNoteCard(note, noteDeleteActive)).join("") || empty(notesEmptyText)}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
+  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div><div class="progress-fact"><dt>阅读进度</dt><dd>${escapeHtml(progressText(book))}<span class="progress-meter" aria-hidden="true"><i style="width: ${percent}%"></i></span></dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div></div>${renderFirstMeetCard(book)}</section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div>${dailyActions}</div><div class="${timelineClass}">${cards.map((card) => renderDailyCard(card, book.id, dailyDeleteActive)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div>${noteActions}</div>${renderNoteFilter(book, activeNoteFilter)}<div class="notes-grid">${visibleNotes.map((note) => renderNoteCard(note, noteDeleteActive)).join("") || empty(notesEmptyText)}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
 }
 
 function renderWishes() {
   const priority = { high: ["❤️", "很想看"], medium: ["💛", "一般"], low: ["🤍", "随缘"] };
-  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><section class="wishlist-panel"><div class="wishlist-head"><div><p class="eyebrow">SOMEDAY SHELF</p><h2>愿望池</h2><p>把想读的书放在这里，等一个恰好的二十分钟。</p></div><button class="primary-button" data-action="random-wish">🎲 随机抽一本</button></div><div class="wishlist-grid">${state.wishes.map((wish) => `<article class="wish-card"><div><span class="wish-priority">${priority[wish.priority]?.[0] || "🤍"} ${priority[wish.priority]?.[1] || "随缘"}</span><p class="eyebrow">${escapeHtml(wish.category || "未分类")}</p><h3>${escapeHtml(wish.title)}</h3><p class="book-author">${escapeHtml(wish.author || "未署名")}</p></div><p>${escapeHtml(wish.reason || "暂时没有写下原因。")}</p><small>来自 ${escapeHtml(wish.source || "未记录")}</small><div class="wish-actions"><button class="quiet-button" data-action="edit-wish" data-wish="${wish.id}">编辑</button><button class="quiet-button" data-action="start-wish" data-wish="${wish.id}">开始阅读 →</button></div></article>`).join("") || empty("愿望池很安静，等下一本想读的书。")}</div></section>`, { page: "wishes", title: "愿望池", subtitle: "还没相遇，但已经为它们留了位置" });
+  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><section class="wishlist-panel"><div class="wishlist-head"><div><p class="eyebrow">SOMEDAY SHELF</p><h2>愿望池</h2><p>把想读的书放在这里，等一个恰好的二十分钟。</p></div><button class="primary-button" data-action="random-wish">🎲 随机抽一本</button></div><div class="wishlist-grid">${state.wishes.map((wish) => `<article class="wish-card editable-region" data-wish-id="${escapeHtml(wish.id)}"><div><span class="wish-priority">${priority[wish.priority]?.[0] || "🤍"} ${priority[wish.priority]?.[1] || "随缘"}</span><p class="eyebrow">${escapeHtml(wish.category || "未分类")}</p><h3>${escapeHtml(wish.title)}</h3><p class="book-author">${escapeHtml(wish.author || "未署名")}</p></div><p>${escapeHtml(wish.reason || "暂时没有写下原因。")}</p><small>来自 ${escapeHtml(wish.source || "未记录")}</small><div class="wish-actions"><button class="quiet-button" data-action="start-wish" data-wish="${wish.id}">开始阅读</button></div></article>`).join("") || empty("愿望池很安静，等下一本想读的书。")}</div></section>`, { page: "wishes", title: "愿望池", subtitle: "还没相遇，但已经为它们留了位置" });
 }
 
 function renderSearch(query) {
@@ -473,7 +473,9 @@ function bookForm(book = {}) {
 function openBookForm(book) { openModal(book ? "编辑初见" : "新增一本书", bookForm(book)); }
 function openWishForm(wish = {}) { openModal(wish.id ? "编辑愿望" : "放进愿望池", `<form data-form="wish" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(wish.id || "")}"><label>书名<input required name="title" value="${escapeHtml(wish.title || "")}" placeholder="想读的书"></label><label>作者<input name="author" value="${escapeHtml(wish.author || "")}" placeholder="作者"></label><label>分类<select name="category"><option value="">未分类</option>${options(state.categories, wish.category)}</select></label><label>期待程度<select name="priority"><option value="high" ${wish.priority === "high" ? "selected" : ""}>❤️ 很想看</option><option value="medium" ${wish.priority === "medium" ? "selected" : ""}>💛 一般</option><option value="low" ${wish.priority === "low" ? "selected" : ""}>🤍 随缘</option></select></label><label class="span-2">为什么想看<textarea name="reason" placeholder="可选，留给未来的自己。">${escapeHtml(wish.reason || "")}</textarea></label><label class="span-2">来源<input name="source" value="${escapeHtml(wish.source || "")}" placeholder="微信读书、小红书、朋友推荐…"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${wish.id ? "保存修改" : "放进愿望池"}</button></footer></form>`); }
 function openCategoryForm() { openModal("新增分类", `<form data-form="category" class="form-grid"><label>分类名称<input required name="name" placeholder="例如：哲学"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">添加</button></footer></form>`); }
-function openDailyForm(bookId) { openModal("新增每日卡片", `<form data-form="daily" class="form-grid"><input type="hidden" name="bookId" value="${bookId}"><label>日期<input type="date" name="date" value="${today()}"></label><label>阅读位置 / 进度<input name="position" placeholder="23/100，之后可写 43"></label><label class="span-2">💎 今日最有意思的一点<textarea required name="insight" placeholder="用一句话留住它。"></textarea></label><label class="span-2">💭 我的想法<textarea name="thought" placeholder="这让我想到什么？"></textarea></label><label class="span-2">🔗 联想到什么<textarea name="link" placeholder="人、事、旧笔记，或另一本书。"></textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">收下这次阅读</button></footer></form>`); }
+function openDailyForm(bookId, card = {}) {
+  openModal(card.id ? "编辑每日卡片" : "新增每日卡片", `<form data-form="daily" class="form-grid"><input type="hidden" name="bookId" value="${escapeHtml(bookId)}"><input type="hidden" name="id" value="${escapeHtml(card.id || "")}"><label>日期<input type="date" name="date" value="${escapeHtml(card.date || today())}"></label><label>阅读位置 / 进度<input name="position" value="${escapeHtml(card.position || "")}" placeholder="23/100，之后可写 43"></label><label class="span-2">💎 今日最有意思的一点<textarea required name="insight" placeholder="用一句话留住它。">${escapeHtml(card.insight || "")}</textarea></label><label class="span-2">💭 我的想法<textarea name="thought" placeholder="这让我想到什么？">${escapeHtml(card.thought || "")}</textarea></label><label class="span-2">🔗 联想到什么<textarea name="link" placeholder="人、事、旧笔记，或另一本书。">${escapeHtml(card.link || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${card.id ? "保存修改" : "收下这次阅读"}</button></footer></form>`);
+}
 function openNoteForm(bookId, suggestedType = "长笔记") {
   const types = ["思维导图", "人物关系", "时间线", "长笔记", "金句", "内容总结", "自己的理解", "关联书籍", "图片 / PDF"];
   openModal("添加整理内容", `<form data-form="note" class="form-grid note-form"><input type="hidden" name="bookId" value="${bookId}"><label>类型<select name="type">${options(types, suggestedType)}</select></label><label>标题<input required name="title" placeholder="给这份内容一个名字"></label><div class="span-2 form-field"><label for="note-resource-url">关联地址</label><span class="url-input-row"><input id="note-resource-url" type="text" inputmode="url" name="resourceUrl" placeholder="chatgpt.com 或完整网址"><button type="button" class="quiet-button" data-action="open-note-url">打开地址</button></span></div><label class="span-2 attachment-field">导入附件<input type="file" name="attachment" accept=".xmind,.pdf,.opml,.png,.jpg,.jpeg,.webp,.gif,image/*,application/pdf"></label><label class="span-2">文字补充<textarea name="content" placeholder="可选，补充说明这份整理内容。"></textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">放入整理区</button></footer></form>`);
@@ -498,9 +500,7 @@ function onAction(event) {
   if (action === "open-add") openAddMenu();
   if (action === "close-modal") closeModal();
   if (action === "add-book") openBookForm();
-  if (action === "edit-book") openBookForm(state.books.find((book) => book.id === target.dataset.book));
   if (action === "add-wish") openWishForm();
-  if (action === "edit-wish") openWishForm(state.wishes.find((wish) => wish.id === target.dataset.wish));
   if (action === "add-category") openCategoryForm();
   if (action === "add-daily") openDailyForm(target.dataset.book);
   if (action === "add-note") openNoteForm(target.dataset.book, target.dataset.noteType);
@@ -519,6 +519,28 @@ function onAction(event) {
   if (action === "change-cover") openCoverPicker(target.dataset.book);
   if (action === "random-wish") pickRandomWish();
   if (action === "start-wish") startWish(target.dataset.wish);
+}
+
+function onDoubleClick(event) {
+  if (event.target.closest("button, input, select, textarea, a, label")) return;
+  const dailyCard = event.target.closest("[data-daily-card]");
+  if (dailyCard && state.route.deleteMode !== "daily") {
+    const book = state.books.find((entry) => entry.id === dailyCard.dataset.book);
+    const card = book?.dailyCards.find((entry) => entry.id === dailyCard.dataset.dailyCard);
+    if (book && card) openDailyForm(book.id, card);
+    return;
+  }
+  const bookRegion = event.target.closest(".first-meet-card[data-book-id]");
+  if (bookRegion) {
+    const book = state.books.find((entry) => entry.id === bookRegion.dataset.bookId);
+    if (book) openBookForm(book);
+    return;
+  }
+  const wishRegion = event.target.closest(".wish-card[data-wish-id]");
+  if (wishRegion) {
+    const wish = state.wishes.find((entry) => entry.id === wishRegion.dataset.wishId);
+    if (wish) openWishForm(wish);
+  }
 }
 
 function openCoverPicker(bookId) {
@@ -640,7 +662,18 @@ async function onForm(event) {
   }
   if (form.dataset.form === "wish") { const existing = state.wishes.find((wish) => wish.id === data.id); if (existing) Object.assign(existing, { ...existing, ...data }); else state.wishes.unshift({ ...data, id: uid(), createdAt: today() }); saveState(); closeModal(); render(); }
   if (form.dataset.form === "category") { const name = data.name.trim(); if (name && !state.categories.includes(name)) state.categories.push(name); saveState(); closeModal(); render(); }
-  if (form.dataset.form === "daily") { const book = state.books.find((entry) => entry.id === data.bookId); if (book) { const card = { ...data, id: uid() }; book.dailyCards.push(card); book.lastRead = data.date; applyProgressFromPosition(book, card.position); saveState(); closeModal(); render(); } }
+  if (form.dataset.form === "daily") {
+    const book = state.books.find((entry) => entry.id === data.bookId);
+    if (book) {
+      const existing = book.dailyCards.find((card) => card.id === data.id);
+      const card = { ...data, id: data.id || uid() };
+      if (existing) Object.assign(existing, card);
+      else book.dailyCards.push(card);
+      updateLastReadFromCards(book);
+      rebuildProgressFromDailyCards(book);
+      saveState(); closeModal(); render();
+    }
+  }
   if (form.dataset.form === "note") {
     const book = state.books.find((entry) => entry.id === data.bookId);
     const file = form.elements.attachment.files[0];
@@ -665,6 +698,7 @@ async function onForm(event) {
 }
 
 document.addEventListener("click", onAction);
+document.addEventListener("dblclick", onDoubleClick);
 document.addEventListener("submit", onForm);
 document.addEventListener("change", (event) => {
   if (event.target.dataset.control === "sort") setRoute({ sort: event.target.value });
