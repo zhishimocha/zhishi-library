@@ -2,9 +2,11 @@ const STORAGE_KEY = "personal-reading-library-v1";
 const ATTACHMENT_DB = "personal-reading-library-files";
 const ATTACHMENT_STORE = "attachments";
 const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+const BOOK_CATEGORIES = ["人物传记", "历史", "认知", "心理", "商业", "小说", "其他"];
 const $ = (selector, parent = document) => parent.querySelector(selector);
 
 const today = () => new Date().toISOString().slice(0, 10);
+const dateFromUnix = (value) => Number(value) > 0 ? new Date(Number(value) * 1000).toISOString().slice(0, 10) : "";
 const uid = () => `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`;
 const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 const escapeHtml = (value = "") => String(value).replace(/[&<>\"']/g, (character) => ({
@@ -22,6 +24,31 @@ function normalizeExternalUrl(value = "") {
   } catch {
     return "";
   }
+}
+
+function normalizeWeReadUrl(value = "") {
+  const trimmed = String(value).trim();
+  if (!trimmed) return "";
+  try {
+    const url = new URL(trimmed);
+    return ["http:", "https:", "weread:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function classifyBookCategory(book = {}) {
+  const title = String(book.title || "");
+  const sourceCategory = String(book.sourceCategory || book.category || "");
+  if (BOOK_CATEGORIES.includes(sourceCategory)) return sourceCategory;
+  const corpus = `${sourceCategory} ${title}`;
+  if (/^人物传记-|(?:自传|传记|回忆录|口述史|亲笔自传|CEO自述|人物志)/.test(corpus) || /(?:传|传记)(?:（|\(|：|:|$)/.test(title)) return "人物传记";
+  if (/^(历史-|政治军事-)|历史|史记|世界史|中国古代|考古/.test(corpus)) return "历史";
+  if (/^心理-|个人成长-(?:情绪心灵|女性成长)|生活百科-情感|心理学|心理问题|情绪|焦虑|亲密关系|人格|疗愈/.test(corpus)) return "心理";
+  if (/^经济理财-|商业|管理者|管理学|创业|投资|理财|经济学|金融|营销|公司|企业/.test(corpus)) return "商业";
+  if (/^精品小说-|^文学-(?:外国文学|经典作品)|^童书-儿童文学|小说|悬疑|推理|科幻/.test(corpus)) return "小说";
+  if (/^个人成长-|^社会文化-|^科学技术-|^哲学宗教-|^艺术-|^教育-|^文学-(?:散文杂著|现代诗歌)|认知|思维|思考|学习|习惯|高效|自我管理|哲学|社会|文化|科学|科普|散文|诗歌/.test(corpus)) return "认知";
+  return "其他";
 }
 
 function formatFileSize(bytes = 0) {
@@ -120,15 +147,16 @@ function normalizeBook(book = {}) {
 function normalizeLibraryState(library) {
   return {
     ...library,
-    books: (library.books || []).map(normalizeBook),
-    wishes: Array.isArray(library.wishes) ? library.wishes : [],
+    categories: [...BOOK_CATEGORIES],
+    books: (library.books || []).map((book) => normalizeBook({ ...book, category: BOOK_CATEGORIES.includes(book.category) ? book.category : classifyBookCategory({ ...book, sourceCategory: book.category }) })),
+    wishes: Array.isArray(library.wishes) ? library.wishes.map((wish) => ({ ...wish, category: BOOK_CATEGORIES.includes(wish.category) ? wish.category : classifyBookCategory({ ...wish, sourceCategory: wish.category }), categoryLocked: wish.categoryLocked ?? true })) : [],
   };
 }
 
 const starterState = {
   theme: "white",
   route: { page: "home", view: "category", statusLayout: "category", sort: "lastRead", direction: "desc", deleteMode: "", noteFilter: "all" },
-  categories: ["人物传记", "历史", "商业", "心理", "小说", "随笔"],
+  categories: [...BOOK_CATEGORIES],
   books: [
     {
       id: "book-1", title: "苏东坡传", author: "林语堂", category: "人物传记", startDate: "2026-07-10", source: "朋友推荐", reason: "想借一段不被得失困住的人生，重新校准自己的节奏。", firstImpression: "文字有一种很从容的光。", expectation: "读到他如何把困顿过成一种气象。", status: "reading", createdAt: "2026-07-10", lastRead: "2026-07-16", color: "sage", progressCurrent: 23, progressTotal: 100, progressUnit: "页",
@@ -147,8 +175,8 @@ const starterState = {
     },
   ],
   wishes: [
-    { id: "wish-1", title: "东京八平米", author: "吉井忍", category: "随笔", reason: "想看看一种更轻的生活如何被写出来。", source: "小红书", priority: "high", createdAt: "2026-07-15" },
-    { id: "wish-2", title: "枪炮、病菌与钢铁", author: "贾雷德·戴蒙德", category: "历史", reason: "朋友反复提起。", source: "朋友推荐", priority: "medium", createdAt: "2026-07-12" },
+    { id: "wish-1", title: "东京八平米", author: "吉井忍", category: "认知", startDate: "2026-07-15", source: "小红书", status: "wish", createdAt: "2026-07-15" },
+    { id: "wish-2", title: "枪炮、病菌与钢铁", author: "贾雷德·戴蒙德", category: "历史", startDate: "2026-07-12", source: "朋友推荐", status: "wish", createdAt: "2026-07-12" },
   ],
 };
 
@@ -415,8 +443,7 @@ function renderBook(book) {
 }
 
 function renderWishes() {
-  const priority = { high: ["❤️", "很想看"], medium: ["💛", "一般"], low: ["🤍", "随缘"] };
-  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><section class="wishlist-panel"><div class="wishlist-head"><div><p class="eyebrow">SOMEDAY SHELF</p><h2>愿望池</h2><p>把想读的书放在这里，等一个恰好的二十分钟。</p></div><button class="primary-button" data-action="random-wish">🎲 随机抽一本</button></div><div class="wishlist-grid">${state.wishes.map((wish) => `<article class="wish-card editable-region" data-wish-id="${escapeHtml(wish.id)}"><div><span class="wish-priority">${priority[wish.priority]?.[0] || "🤍"} ${priority[wish.priority]?.[1] || "随缘"}</span><p class="eyebrow">${escapeHtml(wish.category || "未分类")}</p><h3>${escapeHtml(wish.title)}</h3><p class="book-author">${escapeHtml(wish.author || "未署名")}</p></div><p>${escapeHtml(wish.reason || "暂时没有写下原因。")}</p><small>来自 ${escapeHtml(wish.source || "未记录")}</small><div class="wish-actions"><button class="quiet-button" data-action="start-wish" data-wish="${wish.id}">开始阅读</button></div></article>`).join("") || empty("愿望池很安静，等下一本想读的书。")}</div></section>`, { page: "wishes", title: "愿望池", subtitle: "还没相遇，但已经为它们留了位置" });
+  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><section class="wishlist-panel"><div class="wishlist-head"><div><p class="eyebrow">SOMEDAY SHELF</p><h2>愿望池</h2><p>微信读书里的未读书籍，先在这里等候。</p></div><button class="primary-button" data-action="random-wish">🎲 随机抽一本</button></div><div class="wishlist-grid">${state.wishes.map((wish) => `<article class="wish-card editable-region" data-wish-id="${escapeHtml(wish.id)}"><div><span class="wish-priority">♡ 未读</span><p class="eyebrow">${escapeHtml(wish.category || "其他")}</p><h3>${escapeHtml(wish.title)}</h3><p class="book-author">${escapeHtml(wish.author || "未署名")}</p></div><div class="wish-meta"><small>${formatDate(wish.startDate || wish.createdAt)}</small><small>来自 ${escapeHtml(wish.source || "未记录")}</small></div><div class="wish-actions">${wish.wereadUrl ? `<button class="quiet-button" data-action="open-wish-url" data-wish="${wish.id}">微信读书 ↗</button>` : ""}<button class="quiet-button" data-action="start-wish" data-wish="${wish.id}">开始阅读</button></div></article>`).join("") || empty("愿望池很安静，等下一本想读的书。")}</div></section>`, { page: "wishes", title: "愿望池", subtitle: "还没相遇，但已经为它们留了位置" });
 }
 
 function renderSearch(query) {
@@ -477,7 +504,7 @@ function bookForm(book = {}) {
 
 function openBookForm(book) { openModal(book ? "编辑初见" : "新增一本书", bookForm(book)); }
 function openWeReadImport() {
-  openModal("从微信读书快速导入", `<form data-form="weread-import" class="form-grid import-form"><div class="span-2 import-intro"><strong>一次粘贴，多本入馆</strong><p>支持微信读书分享文字、JSON，或每行一本：<code>书名 | 作者 | 分类 | 链接</code>。只有链接时无法识别书名，请把分享文字一起复制过来。</p></div><label class="span-2">粘贴书籍信息<textarea required name="content" rows="9" placeholder="《置身事内》\n作者：兰小欢\nhttps://weread.qq.com/...\n\n或者：\n置身事内 | 兰小欢 | 商业 | https://weread.qq.com/..."></textarea></label><label>统一分类<select name="category"><option value="">自动识别 / 未分类</option>${options(state.categories)}</select></label><label>导入后的阶段<select name="status"><option value="reading">🌱 阅读中</option><option value="pending">📝 待整理</option><option value="organized">🌳 已整理</option></select></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">导入书籍</button></footer></form>`);
+  openModal("从微信读书导入愿望池", `<form data-form="weread-import" class="form-grid import-form"><div class="span-2 import-intro"><strong>一次同步，全部进入愿望池</strong><p>支持完整微信读书书架 JSON、分享文字，或每行一本：<code>书名 | 作者 | 分类 | 链接</code>。系统会自动归入六个主题分类，无法可靠判断的书放进“其他”。</p></div><label class="span-2">粘贴书架信息<textarea required name="content" rows="9" placeholder="粘贴微信读书书架 JSON，或：\n《置身事内》\n作者：兰小欢\nhttps://weread.qq.com/..."></textarea></label><label class="span-2">分类方式<select name="category"><option value="">自动识别（推荐）</option>${options(state.categories)}</select></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">导入愿望池</button></footer></form>`);
 }
 
 function cleanImportedText(value = "") {
@@ -485,12 +512,17 @@ function cleanImportedText(value = "") {
 }
 
 function importedBookFromObject(entry = {}) {
+  const album = entry.albumInfo || {};
+  const albumExtra = entry.albumInfoExtra || {};
   return {
-    title: cleanImportedText(entry.title || entry.bookName || entry.name),
-    author: cleanImportedText(entry.author || entry.authorName || entry.writer),
-    category: cleanImportedText(entry.category || entry.genre),
-    wereadUrl: normalizeExternalUrl(entry.wereadUrl || entry.bookUrl || entry.url || entry.link),
-    coverImage: normalizeExternalUrl(entry.coverImage || entry.cover || entry.coverUrl),
+    title: cleanImportedText(entry.title || entry.bookName || entry.name || album.name),
+    author: cleanImportedText(entry.author || entry.authorName || entry.writer || album.authorName),
+    sourceCategory: cleanImportedText(entry.sourceCategory || entry.category || entry.genre || (entry.albumInfo ? "有声书" : "")),
+    wereadUrl: normalizeWeReadUrl(entry.deepLink || entry.wereadUrl || entry.bookUrl || entry.url || entry.link),
+    coverImage: normalizeExternalUrl(entry.coverImage || entry.cover || entry.coverUrl || album.cover),
+    wereadBookId: cleanImportedText(entry.bookId || entry.wereadBookId || album.albumId),
+    readUpdateTime: Number(entry.readUpdateTime || albumExtra.lectureReadUpdateTime || 0),
+    finishReading: Number(entry.finishReading || album.finish || 0),
   };
 }
 
@@ -499,7 +531,7 @@ function parseWeReadImport(raw = "") {
   if (!text) return [];
   try {
     const parsed = JSON.parse(text);
-    const entries = Array.isArray(parsed) ? parsed : Array.isArray(parsed.books) ? parsed.books : [parsed];
+    const entries = Array.isArray(parsed) ? parsed : Array.isArray(parsed.books) ? [...parsed.books, ...(Array.isArray(parsed.albums) ? parsed.albums : [])] : [parsed];
     return entries.map(importedBookFromObject).filter((book) => book.title);
   } catch {}
 
@@ -524,7 +556,7 @@ function parseWeReadImport(raw = "") {
     return importedBookFromObject({ title, author, url });
   }).filter((book) => book.title && !/^https?:\/\//i.test(book.title));
 }
-function openWishForm(wish = {}) { openModal(wish.id ? "编辑愿望" : "放进愿望池", `<form data-form="wish" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(wish.id || "")}"><label>书名<input required name="title" value="${escapeHtml(wish.title || "")}" placeholder="想读的书"></label><label>作者<input name="author" value="${escapeHtml(wish.author || "")}" placeholder="作者"></label><label>分类<select name="category"><option value="">未分类</option>${options(state.categories, wish.category)}</select></label><label>期待程度<select name="priority"><option value="high" ${wish.priority === "high" ? "selected" : ""}>❤️ 很想看</option><option value="medium" ${wish.priority === "medium" ? "selected" : ""}>💛 一般</option><option value="low" ${wish.priority === "low" ? "selected" : ""}>🤍 随缘</option></select></label><label class="span-2">为什么想看<textarea name="reason" placeholder="可选，留给未来的自己。">${escapeHtml(wish.reason || "")}</textarea></label><label class="span-2">来源<input name="source" value="${escapeHtml(wish.source || "")}" placeholder="微信读书、小红书、朋友推荐…"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${wish.id ? "保存修改" : "放进愿望池"}</button></footer></form>`); }
+function openWishForm(wish = {}) { openModal(wish.id ? "编辑未读书籍" : "放进愿望池", `<form data-form="wish" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(wish.id || "")}"><label>书名<input required name="title" value="${escapeHtml(wish.title || "")}" placeholder="例如：乔布斯传"></label><label>作者<input name="author" value="${escapeHtml(wish.author || "")}" placeholder="作者"></label><label>分类<select name="category">${options(state.categories, wish.category || "其他")}</select></label><label>开始阅读日期<input type="date" name="startDate" value="${escapeHtml(wish.startDate || wish.createdAt || today())}"></label><label>来源<input name="source" value="${escapeHtml(wish.source || "")}" placeholder="书店、朋友推荐、微信读书…"></label><label>阅读阶段<select name="status"><option value="wish" selected>♡ 未读 / 愿望池</option></select></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${wish.id ? "保存修改" : "放进愿望池"}</button></footer></form>`); }
 function openCategoryForm() { openModal("新增分类", `<form data-form="category" class="form-grid"><label>分类名称<input required name="name" placeholder="例如：哲学"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">添加</button></footer></form>`); }
 function openDailyForm(bookId, card = {}) {
   openModal(card.id ? "编辑每日卡片" : "新增每日卡片", `<form data-form="daily" class="form-grid"><input type="hidden" name="bookId" value="${escapeHtml(bookId)}"><input type="hidden" name="id" value="${escapeHtml(card.id || "")}"><label>日期<input type="date" name="date" value="${escapeHtml(card.date || today())}"></label><label>阅读位置 / 进度<input name="position" value="${escapeHtml(card.position || "")}" placeholder="23/100，之后可写 43"></label><label class="span-2">💎 今日最有意思的一点<textarea required name="insight" placeholder="用一句话留住它。">${escapeHtml(card.insight || "")}</textarea></label><label class="span-2">💭 我的想法<textarea name="thought" placeholder="这让我想到什么？">${escapeHtml(card.thought || "")}</textarea></label><label class="span-2">🔗 联想到什么<textarea name="link" placeholder="人、事、旧笔记，或另一本书。">${escapeHtml(card.link || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${card.id ? "保存修改" : "收下这次阅读"}</button></footer></form>`);
@@ -575,7 +607,12 @@ function onAction(event) {
   }
   if (action === "open-book-url") {
     const book = state.books.find((entry) => entry.id === target.dataset.book);
-    const url = normalizeExternalUrl(book?.wereadUrl);
+    const url = normalizeWeReadUrl(book?.wereadUrl);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
+  }
+  if (action === "open-wish-url") {
+    const wish = state.wishes.find((entry) => entry.id === target.dataset.wish);
+    const url = normalizeWeReadUrl(wish?.wereadUrl);
     if (url) window.open(url, "_blank", "noopener,noreferrer");
   }
   if (action === "open-attachment") openStoredAttachment(target.dataset.attachment, target.dataset.preview === "true");
@@ -620,14 +657,14 @@ function openCoverPicker(bookId) {
 function pickRandomWish() {
   if (!state.wishes.length) return;
   const wish = state.wishes[Math.floor(Math.random() * state.wishes.length)];
-  openModal("今天读这一本", `<div class="random-pick"><p class="eyebrow">A SMALL READING WINDOW</p><h2>${escapeHtml(wish.title)}</h2><p>${escapeHtml(wish.author || "未署名")} · ${escapeHtml(wish.category || "未分类")}</p><p>${escapeHtml(wish.reason || "也许现在正是打开它的时刻。")}</p><div class="form-actions"><button class="quiet-button" data-action="close-modal">换个时间</button><button class="primary-button" data-action="start-wish" data-wish="${wish.id}">开始阅读</button></div></div>`);
+  openModal("今天读这一本", `<div class="random-pick"><p class="eyebrow">A SMALL READING WINDOW</p><h2>${escapeHtml(wish.title)}</h2><p>${escapeHtml(wish.author || "未署名")} · ${escapeHtml(wish.category || "其他")}</p><p>也许现在正是打开它的时刻。</p><div class="form-actions"><button class="quiet-button" data-action="close-modal">换个时间</button><button class="primary-button" data-action="start-wish" data-wish="${wish.id}">开始阅读</button></div></div>`);
 }
 
 function startWish(wishId) {
   const index = state.wishes.findIndex((wish) => wish.id === wishId);
   if (index === -1) return;
   const wish = state.wishes.splice(index, 1)[0];
-  const book = { id: uid(), title: wish.title, author: wish.author, category: wish.category, source: wish.source, reason: wish.reason, startDate: today(), firstImpression: "", expectation: "", status: "reading", createdAt: today(), lastRead: today(), color: "rose", progressCurrent: 0, progressTotal: 0, progressUnit: "页", dailyCards: [], notes: [] };
+  const book = { id: uid(), title: wish.title, author: wish.author, category: wish.category, source: wish.source, reason: wish.reason, startDate: today(), firstImpression: "", expectation: "", status: "reading", createdAt: today(), lastRead: wish.lastRead || today(), color: "rose", coverImage: wish.coverImage, wereadUrl: wish.wereadUrl, wereadBookId: wish.wereadBookId, progressCurrent: 0, progressTotal: 0, progressUnit: "页", dailyCards: [], notes: [] };
   state.books.unshift(book); saveState(); closeModal(); setRoute({ page: "book", bookId: book.id, deleteMode: "", noteFilter: "all" });
 }
 
@@ -733,21 +770,32 @@ async function onForm(event) {
   if (form.dataset.form === "weread-import") {
     const parsed = parseWeReadImport(data.content);
     if (!parsed.length) { window.alert("没有识别到书名。请粘贴包含书名的分享文字，或按“书名 | 作者 | 分类 | 链接”每行一本。"); return; }
-    const existingKeys = new Set(state.books.map((book) => `${book.title.trim().toLocaleLowerCase()}\u0000${(book.author || "").trim().toLocaleLowerCase()}`));
-    const existingUrls = new Set(state.books.map((book) => normalizeExternalUrl(book.wereadUrl)).filter(Boolean));
+    const identityKey = (entry) => `${entry.title.trim().toLocaleLowerCase()}\u0000${(entry.author || "").trim().toLocaleLowerCase()}`;
+    const matchesEntry = (candidate, entry) => (entry.wereadBookId && candidate.wereadBookId === entry.wereadBookId) || (entry.wereadUrl && normalizeWeReadUrl(candidate.wereadUrl) === entry.wereadUrl) || identityKey(candidate) === identityKey(entry);
     const imported = [];
-    let skipped = 0;
+    let updated = 0;
+    let alreadyReading = 0;
     parsed.forEach((entry) => {
-      const key = `${entry.title.trim().toLocaleLowerCase()}\u0000${entry.author.trim().toLocaleLowerCase()}`;
-      if (existingKeys.has(key) || (entry.wereadUrl && existingUrls.has(entry.wereadUrl))) { skipped += 1; return; }
-      const book = normalizeBook({ ...entry, id: uid(), category: entry.category || data.category, source: "微信读书", startDate: today(), status: data.status, reason: "", firstImpression: "", expectation: "", createdAt: today(), lastRead: today(), color: "rose", progressCurrent: 0, progressTotal: 0, progressUnit: "页", dailyCards: [], notes: [] });
-      imported.push(book); existingKeys.add(key); if (entry.wereadUrl) existingUrls.add(entry.wereadUrl);
+      const existingBook = state.books.find((book) => matchesEntry(book, entry));
+      if (existingBook) {
+        Object.assign(existingBook, { wereadUrl: entry.wereadUrl || existingBook.wereadUrl, wereadBookId: entry.wereadBookId || existingBook.wereadBookId, coverImage: existingBook.coverImage || entry.coverImage, lastRead: dateFromUnix(entry.readUpdateTime) || existingBook.lastRead });
+        alreadyReading += 1;
+        return;
+      }
+      const category = data.category || classifyBookCategory(entry);
+      const existingWish = state.wishes.find((wish) => matchesEntry(wish, entry));
+      if (existingWish) {
+        Object.assign(existingWish, { author: entry.author || existingWish.author, source: "微信读书", sourceCategory: entry.sourceCategory || existingWish.sourceCategory, wereadUrl: entry.wereadUrl || existingWish.wereadUrl, wereadBookId: entry.wereadBookId || existingWish.wereadBookId, coverImage: entry.coverImage || existingWish.coverImage, readUpdateTime: entry.readUpdateTime || existingWish.readUpdateTime, lastRead: dateFromUnix(entry.readUpdateTime) || existingWish.lastRead, category: existingWish.categoryLocked ? existingWish.category : category });
+        updated += 1;
+        return;
+      }
+      imported.push({ ...entry, id: uid(), category, categoryLocked: Boolean(data.category), source: "微信读书", startDate: today(), status: "wish", createdAt: today(), lastRead: dateFromUnix(entry.readUpdateTime) });
     });
-    if (!imported.length) { window.alert(`识别到 ${parsed.length} 本，但它们已经在图书馆里了。`); return; }
-    state.books.unshift(...imported); saveState(); closeModal(); render();
-    window.alert(`已导入 ${imported.length} 本${skipped ? `，跳过 ${skipped} 本重复书籍` : ""}。`);
+    if (!imported.length && !updated && !alreadyReading) { window.alert("没有可以同步的书籍。"); return; }
+    state.wishes.unshift(...imported); saveState(); closeModal(); setRoute({ page: "wishes", deleteMode: "" });
+    window.alert(`愿望池同步完成：新增 ${imported.length} 本，更新 ${updated} 本${alreadyReading ? `，关联书库中已有的 ${alreadyReading} 本` : ""}。`);
   }
-  if (form.dataset.form === "wish") { const existing = state.wishes.find((wish) => wish.id === data.id); if (existing) Object.assign(existing, { ...existing, ...data }); else state.wishes.unshift({ ...data, id: uid(), createdAt: today() }); saveState(); closeModal(); render(); }
+  if (form.dataset.form === "wish") { const existing = state.wishes.find((wish) => wish.id === data.id); const record = { ...data, title: data.title.trim(), author: data.author.trim(), wereadUrl: hasOwn(data, "wereadUrl") ? normalizeWeReadUrl(data.wereadUrl) : existing?.wereadUrl || "", category: data.category || "其他", categoryLocked: true }; if (existing) Object.assign(existing, record); else state.wishes.unshift({ ...record, id: uid(), createdAt: today() }); saveState(); closeModal(); render(); }
   if (form.dataset.form === "category") { const name = data.name.trim(); if (name && !state.categories.includes(name)) state.categories.push(name); saveState(); closeModal(); render(); }
   if (form.dataset.form === "daily") {
     const book = state.books.find((entry) => entry.id === data.bookId);

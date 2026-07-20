@@ -827,6 +827,12 @@ select {
   justify-content: flex-end;
 }
 
+.wish-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .fab {
   position: fixed;
   right: 28px;
