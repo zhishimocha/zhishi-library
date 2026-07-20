@@ -145,11 +145,14 @@ function normalizeBook(book = {}) {
 }
 
 function normalizeLibraryState(library) {
+  const validWishes = Array.isArray(library.wishes)
+    ? library.wishes.filter((wish) => !(wish.source === "微信读书" && /\uFFFD/.test(`${wish.title || ""}${wish.author || ""}`)))
+    : [];
   return {
     ...library,
     categories: [...BOOK_CATEGORIES],
     books: (library.books || []).map((book) => normalizeBook({ ...book, category: BOOK_CATEGORIES.includes(book.category) ? book.category : classifyBookCategory({ ...book, sourceCategory: book.category }) })),
-    wishes: Array.isArray(library.wishes) ? library.wishes.map((wish) => ({ ...wish, category: BOOK_CATEGORIES.includes(wish.category) ? wish.category : classifyBookCategory({ ...wish, sourceCategory: wish.category }), categoryLocked: wish.categoryLocked ?? true })) : [],
+    wishes: validWishes.map((wish) => ({ ...wish, category: BOOK_CATEGORIES.includes(wish.category) ? wish.category : classifyBookCategory({ ...wish, sourceCategory: wish.category }), categoryLocked: wish.categoryLocked ?? true })),
   };
 }
 
