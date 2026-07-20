@@ -1329,6 +1329,32 @@ textarea {
   text-align: center;
 }
 
+.import-intro {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  padding: 14px;
+}
+
+.import-intro p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.import-intro code {
+  color: var(--ink);
+}
+
+.import-form textarea {
+  min-height: 190px;
+}
+
+.book-source-link {
+  margin-top: -14px;
+}
+
 .cover-picker,
 .random-pick {
   padding: 18px;

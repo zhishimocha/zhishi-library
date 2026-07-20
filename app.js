@@ -441,6 +441,9 @@ function render() {
   if (page === "wishes") html = renderWishes();
   if (page === "search") html = renderSearch(state.route.query || "");
   $("#app").innerHTML = html;
+  if (page === "book" && book?.wereadUrl) {
+    $(".book-profile [data-action=\"change-cover\"]")?.insertAdjacentHTML("afterend", `<button class="quiet-button full book-source-link" data-action="open-book-url" data-book="${escapeHtml(book.id)}">在微信读书打开 ↗</button>`);
+  }
   if (page === "wishes") {
     $(".wishlist-head")?.remove();
     $(".book-nav")?.insertAdjacentHTML("afterbegin", '<button class="primary-button" data-action="random-wish">🎲 随机抽一本</button>');
@@ -464,15 +467,63 @@ function options(values, selected = "") { return values.map((value) => `<option 
 
 function openAddMenu() {
   const onBook = state.route.page === "book";
-  const choices = onBook ? [["add-daily", "🌱", "每日卡片"], ["add-note", "🧠", "思维导图"], ["add-note", "👥", "人物关系"], ["add-note", "📄", "长笔记"], ["add-note", "💎", "金句"], ["add-note", "📎", "图片 / PDF"]] : [["add-book", "📖", "一本书"], ["add-category", "📂", "分类"], ["add-wish", "♡", "愿望池"]];
+  const choices = onBook ? [["add-daily", "🌱", "每日卡片"], ["add-note", "🧠", "思维导图"], ["add-note", "👥", "人物关系"], ["add-note", "📄", "长笔记"], ["add-note", "💎", "金句"], ["add-note", "📎", "图片 / PDF"]] : [["add-book", "📖", "一本书"], ["import-weread", "⚡", "微信读书 / 批量导入"], ["add-category", "📂", "分类"], ["add-wish", "♡", "愿望池"]];
   openModal("新增", `<div class="add-menu">${choices.map(([action, icon, label]) => `<button data-action="${action}" ${onBook ? `data-book="${state.route.bookId}" data-note-type="${label}"` : ""}><span>${icon}</span>${label}</button>`).join("")}</div>`);
 }
 
 function bookForm(book = {}) {
-  return `<form data-form="book" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(book.id || "")}"><label>书名<input required name="title" value="${escapeHtml(book.title || "")}" placeholder="例如：乔布斯传"></label><label>作者<input name="author" value="${escapeHtml(book.author || "")}" placeholder="作者"></label><label>分类<select name="category"><option value="">未分类</option>${options(state.categories, book.category)}</select></label><label>开始阅读日期<input type="date" name="startDate" value="${escapeHtml(book.startDate || today())}"></label><label>来源<input name="source" value="${escapeHtml(book.source || "")}" placeholder="书店、朋友推荐、微信读书…"></label><label>阅读阶段<select name="status"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><label class="span-2">为什么开始看<textarea name="reason" placeholder="那一刻，是什么让我翻开它？">${escapeHtml(book.reason || "")}</textarea></label><label class="span-2">第一印象<textarea name="firstImpression">${escapeHtml(book.firstImpression || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">保存</button></footer></form>`;
+  return `<form data-form="book" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(book.id || "")}"><label>书名<input required name="title" value="${escapeHtml(book.title || "")}" placeholder="例如：乔布斯传"></label><label>作者<input name="author" value="${escapeHtml(book.author || "")}" placeholder="作者"></label><label>分类<select name="category"><option value="">未分类</option>${options(state.categories, book.category)}</select></label><label>开始阅读日期<input type="date" name="startDate" value="${escapeHtml(book.startDate || today())}"></label><label>来源<input name="source" value="${escapeHtml(book.source || "")}" placeholder="书店、朋友推荐、微信读书…"></label><label>阅读阶段<select name="status"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><label class="span-2">微信读书链接<input type="url" name="wereadUrl" value="${escapeHtml(book.wereadUrl || "")}" placeholder="https://weread.qq.com/..."></label><label class="span-2">为什么开始看<textarea name="reason" placeholder="那一刻，是什么让我翻开它？">${escapeHtml(book.reason || "")}</textarea></label><label class="span-2">第一印象<textarea name="firstImpression">${escapeHtml(book.firstImpression || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">保存</button></footer></form>`;
 }
 
 function openBookForm(book) { openModal(book ? "编辑初见" : "新增一本书", bookForm(book)); }
+function openWeReadImport() {
+  openModal("从微信读书快速导入", `<form data-form="weread-import" class="form-grid import-form"><div class="span-2 import-intro"><strong>一次粘贴，多本入馆</strong><p>支持微信读书分享文字、JSON，或每行一本：<code>书名 | 作者 | 分类 | 链接</code>。只有链接时无法识别书名，请把分享文字一起复制过来。</p></div><label class="span-2">粘贴书籍信息<textarea required name="content" rows="9" placeholder="《置身事内》\n作者：兰小欢\nhttps://weread.qq.com/...\n\n或者：\n置身事内 | 兰小欢 | 商业 | https://weread.qq.com/..."></textarea></label><label>统一分类<select name="category"><option value="">自动识别 / 未分类</option>${options(state.categories)}</select></label><label>导入后的阶段<select name="status"><option value="reading">🌱 阅读中</option><option value="pending">📝 待整理</option><option value="organized">🌳 已整理</option></select></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">导入书籍</button></footer></form>`);
+}
+
+function cleanImportedText(value = "") {
+  return String(value).replace(/^[\s"'“”]+|[\s"'“”]+$/g, "").trim();
+}
+
+function importedBookFromObject(entry = {}) {
+  return {
+    title: cleanImportedText(entry.title || entry.bookName || entry.name),
+    author: cleanImportedText(entry.author || entry.authorName || entry.writer),
+    category: cleanImportedText(entry.category || entry.genre),
+    wereadUrl: normalizeExternalUrl(entry.wereadUrl || entry.bookUrl || entry.url || entry.link),
+    coverImage: normalizeExternalUrl(entry.coverImage || entry.cover || entry.coverUrl),
+  };
+}
+
+function parseWeReadImport(raw = "") {
+  const text = String(raw).trim();
+  if (!text) return [];
+  try {
+    const parsed = JSON.parse(text);
+    const entries = Array.isArray(parsed) ? parsed : Array.isArray(parsed.books) ? parsed.books : [parsed];
+    return entries.map(importedBookFromObject).filter((book) => book.title);
+  } catch {}
+
+  const delimited = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).filter((line) => /[|\t]/.test(line)).map((line) => {
+    const [title, author = "", category = "", url = ""] = line.split(/\s*(?:\||\t)\s*/);
+    return importedBookFromObject({ title, author, category, url });
+  }).filter((book) => book.title);
+  if (delimited.length) return delimited;
+
+  const titleMatches = [...text.matchAll(/《([^》]+)》/g)];
+  if (titleMatches.length) return titleMatches.map((match, index) => {
+    const block = text.slice(match.index, titleMatches[index + 1]?.index ?? text.length);
+    const author = block.match(/(?:作者|著者|作者简介)\s*[：:]\s*([^\n\r|]+)/)?.[1]?.replace(/https?:\/\/\S+.*/, "") || "";
+    const url = block.match(/https?:\/\/[^\s]+/)?.[0] || "";
+    return importedBookFromObject({ title: match[1], author, url });
+  });
+
+  return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+    const url = line.match(/https?:\/\/[^\s]+/)?.[0] || "";
+    const withoutUrl = line.replace(url, "").trim();
+    const [title, author = ""] = withoutUrl.split(/\s+(?:[-—·]|作者[：:])\s+/, 2);
+    return importedBookFromObject({ title, author, url });
+  }).filter((book) => book.title && !/^https?:\/\//i.test(book.title));
+}
 function openWishForm(wish = {}) { openModal(wish.id ? "编辑愿望" : "放进愿望池", `<form data-form="wish" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(wish.id || "")}"><label>书名<input required name="title" value="${escapeHtml(wish.title || "")}" placeholder="想读的书"></label><label>作者<input name="author" value="${escapeHtml(wish.author || "")}" placeholder="作者"></label><label>分类<select name="category"><option value="">未分类</option>${options(state.categories, wish.category)}</select></label><label>期待程度<select name="priority"><option value="high" ${wish.priority === "high" ? "selected" : ""}>❤️ 很想看</option><option value="medium" ${wish.priority === "medium" ? "selected" : ""}>💛 一般</option><option value="low" ${wish.priority === "low" ? "selected" : ""}>🤍 随缘</option></select></label><label class="span-2">为什么想看<textarea name="reason" placeholder="可选，留给未来的自己。">${escapeHtml(wish.reason || "")}</textarea></label><label class="span-2">来源<input name="source" value="${escapeHtml(wish.source || "")}" placeholder="微信读书、小红书、朋友推荐…"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${wish.id ? "保存修改" : "放进愿望池"}</button></footer></form>`); }
 function openCategoryForm() { openModal("新增分类", `<form data-form="category" class="form-grid"><label>分类名称<input required name="name" placeholder="例如：哲学"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">添加</button></footer></form>`); }
 function openDailyForm(bookId, card = {}) {
@@ -506,6 +557,7 @@ function onAction(event) {
   if (action === "open-add") openAddMenu();
   if (action === "close-modal") closeModal();
   if (action === "add-book") openBookForm();
+  if (action === "import-weread") openWeReadImport();
   if (action === "add-wish") openWishForm();
   if (action === "add-category") openCategoryForm();
   if (action === "add-daily") openDailyForm(target.dataset.book);
@@ -520,6 +572,11 @@ function onAction(event) {
     const url = normalizeExternalUrl(input?.value);
     if (url) window.open(url, "_blank", "noopener,noreferrer");
     else window.alert("请先填写有效的网址。");
+  }
+  if (action === "open-book-url") {
+    const book = state.books.find((entry) => entry.id === target.dataset.book);
+    const url = normalizeExternalUrl(book?.wereadUrl);
+    if (url) window.open(url, "_blank", "noopener,noreferrer");
   }
   if (action === "open-attachment") openStoredAttachment(target.dataset.attachment, target.dataset.preview === "true");
   if (action === "change-cover") openCoverPicker(target.dataset.book);
@@ -672,6 +729,23 @@ async function onForm(event) {
     const record = normalizeBook({ ...data, progressCurrent, progressTotal, progressUnit, id: data.id || uid(), createdAt: existing?.createdAt || today(), lastRead: existing?.lastRead || today(), color: existing?.color || "rose", coverImage: existing?.coverImage, dailyCards: existing?.dailyCards || [], notes: existing?.notes || [] });
     if (existing) Object.assign(existing, record); else state.books.unshift(record);
     saveState(); closeModal(); setRoute({ page: "book", bookId: record.id, deleteMode: "", noteFilter: "all" });
+  }
+  if (form.dataset.form === "weread-import") {
+    const parsed = parseWeReadImport(data.content);
+    if (!parsed.length) { window.alert("没有识别到书名。请粘贴包含书名的分享文字，或按“书名 | 作者 | 分类 | 链接”每行一本。"); return; }
+    const existingKeys = new Set(state.books.map((book) => `${book.title.trim().toLocaleLowerCase()}\u0000${(book.author || "").trim().toLocaleLowerCase()}`));
+    const existingUrls = new Set(state.books.map((book) => normalizeExternalUrl(book.wereadUrl)).filter(Boolean));
+    const imported = [];
+    let skipped = 0;
+    parsed.forEach((entry) => {
+      const key = `${entry.title.trim().toLocaleLowerCase()}\u0000${entry.author.trim().toLocaleLowerCase()}`;
+      if (existingKeys.has(key) || (entry.wereadUrl && existingUrls.has(entry.wereadUrl))) { skipped += 1; return; }
+      const book = normalizeBook({ ...entry, id: uid(), category: entry.category || data.category, source: "微信读书", startDate: today(), status: data.status, reason: "", firstImpression: "", expectation: "", createdAt: today(), lastRead: today(), color: "rose", progressCurrent: 0, progressTotal: 0, progressUnit: "页", dailyCards: [], notes: [] });
+      imported.push(book); existingKeys.add(key); if (entry.wereadUrl) existingUrls.add(entry.wereadUrl);
+    });
+    if (!imported.length) { window.alert(`识别到 ${parsed.length} 本，但它们已经在图书馆里了。`); return; }
+    state.books.unshift(...imported); saveState(); closeModal(); render();
+    window.alert(`已导入 ${imported.length} 本${skipped ? `，跳过 ${skipped} 本重复书籍` : ""}。`);
   }
   if (form.dataset.form === "wish") { const existing = state.wishes.find((wish) => wish.id === data.id); if (existing) Object.assign(existing, { ...existing, ...data }); else state.wishes.unshift({ ...data, id: uid(), createdAt: today() }); saveState(); closeModal(); render(); }
   if (form.dataset.form === "category") { const name = data.name.trim(); if (name && !state.categories.includes(name)) state.categories.push(name); saveState(); closeModal(); render(); }
