@@ -2,8 +2,15 @@ const STORAGE_KEY = "personal-reading-library-v1";
 const ATTACHMENT_DB = "personal-reading-library-files";
 const ATTACHMENT_STORE = "attachments";
 const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+const SUPABASE_URL = "https://pvzixscmdbzxsaywedhs.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_gJpnWRkLJnbcJRm0IU2YJA_hSLvn6jV";
 const BOOK_CATEGORIES = ["人物传记", "历史", "认知", "心理", "商业", "小说", "其他"];
 const $ = (selector, parent = document) => parent.querySelector(selector);
+const cloudClient = window.supabase?.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+let cloudUser = null;
+let cloudReady = false;
+let cloudStatus = cloudClient ? "local" : "unavailable";
+let cloudSaveTimer = null;
 
 const today = () => new Date().toISOString().slice(0, 10);
 const dateFromUnix = (value) => Number(value) > 0 ? new Date(Number(value) * 1000).toISOString().slice(0, 10) : "";
@@ -195,7 +202,92 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, route: undefined }));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(stateForStorage()));
+  queueCloudSave();
+}
+
+function stateForStorage() {
+  return { ...state, route: undefined };
+}
+
+function queueCloudSave() {
+  if (!cloudClient || !cloudUser || !cloudReady) return;
+  window.clearTimeout(cloudSaveTimer);
+  cloudStatus = "saving";
+  cloudSaveTimer = window.setTimeout(() => pushCloudState(), 450);
+}
+
+async function pushCloudState() {
+  if (!cloudClient || !cloudUser) return false;
+  cloudStatus = "saving";
+  render();
+  const { error } = await cloudClient.from("library_states").upsert({
+    user_id: cloudUser.id,
+    data: stateForStorage(),
+    updated_at: new Date().toISOString(),
+  });
+  cloudStatus = error ? "error" : "synced";
+  render();
+  return !error;
+}
+
+async function applyCloudSession(session) {
+  cloudUser = session?.user || null;
+  cloudReady = false;
+  if (!cloudUser) {
+    cloudStatus = cloudClient ? "local" : "unavailable";
+    cloudReady = true;
+    render();
+    return;
+  }
+  cloudStatus = "loading";
+  render();
+  const { data, error } = await cloudClient.from("library_states").select("data").eq("user_id", cloudUser.id).maybeSingle();
+  if (error) {
+    cloudStatus = "error";
+    cloudReady = true;
+    render();
+    return;
+  }
+  if (data?.data) {
+    state = normalizeLibraryState({ ...starterState, ...data.data, route: state.route });
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stateForStorage()));
+  } else {
+    const { error: uploadError } = await cloudClient.from("library_states").upsert({
+      user_id: cloudUser.id,
+      data: stateForStorage(),
+      updated_at: new Date().toISOString(),
+    });
+    if (uploadError) {
+      cloudStatus = "error";
+      cloudReady = true;
+      render();
+      return;
+    }
+  }
+  cloudStatus = "synced";
+  cloudReady = true;
+  render();
+}
+
+async function initializeCloud() {
+  if (!cloudClient) return;
+  const { data } = await cloudClient.auth.getSession();
+  await applyCloudSession(data.session);
+  cloudClient.auth.onAuthStateChange((_event, session) => {
+    window.setTimeout(() => {
+      if (session?.user?.id !== cloudUser?.id) applyCloudSession(session);
+    }, 0);
+  });
+}
+
+function cloudStatusText() {
+  if (cloudStatus === "loading") return "☁ 正在读取";
+  if (cloudStatus === "saving") return "☁ 正在同步";
+  if (cloudStatus === "synced") return "☁ 已同步";
+  if (cloudStatus === "error") return "☁ 同步失败";
+  if (cloudStatus === "unavailable") return "☁ 暂不可用";
+  return "☁ 登录同步";
 }
 
 function openAttachmentDatabase() {
@@ -362,6 +454,7 @@ function renderAppShell(content, options = {}) {
   return `<main class="app-shell">
     <header class="topbar">
       <form class="search" data-form="search"><span aria-hidden="true">⌕</span><input name="query" value="${escapeHtml(state.route.query || "")}" placeholder="搜索书、想法、标签或整理内容" autocomplete="off"></form>
+      <button class="cloud-sync-button" data-action="cloud-account" title="云端同步">${escapeHtml(cloudStatusText())}</button>
     </header>
     <section class="page-heading"><div><p class="eyebrow">${page === "book" ? "BOOK PAGE" : page === "wishes" ? "WISH POOL" : "PRIVATE COLLECTION"}</p><h1>${escapeHtml(title)}</h1><p>${escapeHtml(subtitle)}</p></div><div class="heading-tools">${page !== "book" ? `<span class="collection-count">${state.books.length} 本已入馆</span>` : ""}<nav class="actions" aria-label="图书馆工具"><button class="icon-button" data-action="theme" title="换肤" aria-label="换肤">◐</button>${homeDeleteButton}<button class="icon-button ${page === "wishes" ? "is-active" : ""}" data-action="wishes" title="愿望池" aria-label="愿望池">♡</button><button class="icon-button ${page === "home" ? "is-active" : ""}" data-action="view-menu" title="切换视图" aria-label="切换视图">▦</button></nav></div></section>
     ${content}
@@ -495,6 +588,18 @@ function openModal(title, content) {
 function closeModal() { const root = $("#modal-root"); if (root) root.innerHTML = ""; }
 function options(values, selected = "") { return values.map((value) => `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(value)}</option>`).join(""); }
 
+function openCloudAccount() {
+  if (!cloudClient) {
+    window.alert("云端同步组件暂时没有加载成功，请刷新页面后再试。");
+    return;
+  }
+  if (cloudUser) {
+    openModal("云端书库", `<div class="cloud-account-panel"><p class="cloud-account-email">${escapeHtml(cloudUser.email || "已登录")}</p><p>登录同一账号后，其他浏览器和设备会读取同一份书库。</p><div class="form-actions"><button type="button" class="quiet-button" data-action="cloud-sign-out">退出登录</button><button type="button" class="primary-button" data-action="cloud-sync-now">立即同步</button></div></div>`);
+    return;
+  }
+  openModal("登录云端书库", `<form data-form="cloud-auth" class="form-grid cloud-auth-form"><div class="span-2 import-intro"><strong>让书库在不同设备保持一致</strong><p>第一次使用请选择“注册并同步”；已有账号直接登录。首次注册可能需要到邮箱点击确认链接。</p></div><label class="span-2">邮箱<input required type="email" name="email" autocomplete="email" placeholder="你的邮箱"></label><label class="span-2">密码<input required minlength="8" type="password" name="password" autocomplete="current-password" placeholder="至少 8 位"></label><footer class="form-actions"><button class="quiet-button" name="authMode" value="signup">注册并同步</button><button class="primary-button" name="authMode" value="signin">登录</button></footer></form>`);
+}
+
 function openAddMenu() {
   const onBook = state.route.page === "book";
   const choices = onBook ? [["add-daily", "🌱", "每日卡片"], ["add-note", "🧠", "思维导图"], ["add-note", "👥", "人物关系"], ["add-note", "📄", "长笔记"], ["add-note", "💎", "金句"], ["add-note", "📎", "图片 / PDF"]] : [["add-book", "📖", "一本书"], ["import-weread", "⚡", "微信读书 / 批量导入"], ["add-category", "📂", "分类"], ["add-wish", "♡", "愿望池"]];
@@ -589,6 +694,9 @@ function onAction(event) {
   if (action === "direction") setRoute({ direction: state.route.direction === "asc" ? "desc" : "asc" });
   if (action === "view-menu") { setRoute({ page: "home", view: state.route.view === "category" ? "cover" : state.route.view === "cover" ? "status" : "category", deleteMode: "" }); }
   if (action === "theme") { const themes = ["white", "black", "pink", "green", "blue"]; state.theme = themes[(themes.indexOf(state.theme) + 1) % themes.length]; saveState(); render(); }
+  if (action === "cloud-account") openCloudAccount();
+  if (action === "cloud-sync-now") { pushCloudState().then((ok) => { if (ok) { closeModal(); window.alert("云端书库已同步。"); } else window.alert("同步失败，请稍后再试。"); }); }
+  if (action === "cloud-sign-out") { cloudClient?.auth.signOut().then(() => { closeModal(); cloudUser = null; cloudStatus = "local"; render(); }); }
   if (action === "open-add") openAddMenu();
   if (action === "close-modal") closeModal();
   if (action === "add-book") openBookForm();
@@ -761,6 +869,30 @@ async function onForm(event) {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(form));
   if (form.dataset.form === "search") { setRoute({ page: "search", query: data.query.trim(), deleteMode: "" }); return; }
+  if (form.dataset.form === "cloud-auth") {
+    const email = data.email.trim();
+    const password = data.password;
+    const authMode = event.submitter?.value || "signin";
+    const submitButtons = form.querySelectorAll("button");
+    submitButtons.forEach((button) => { button.disabled = true; });
+    const result = authMode === "signup"
+      ? await cloudClient.auth.signUp({ email, password, options: { emailRedirectTo: `${location.origin}${location.pathname}` } })
+      : await cloudClient.auth.signInWithPassword({ email, password });
+    if (result.error) {
+      submitButtons.forEach((button) => { button.disabled = false; });
+      window.alert(`登录失败：${result.error.message}`);
+      return;
+    }
+    if (result.data.session) {
+      await applyCloudSession(result.data.session);
+      closeModal();
+      window.alert("已登录，当前书库已经接入云端。");
+    } else {
+      closeModal();
+      window.alert("注册邮件已发送，请到邮箱完成确认后再返回登录。");
+    }
+    return;
+  }
   if (form.dataset.form === "book") {
     const existing = state.books.find((book) => book.id === data.id);
     const progressCurrent = hasOwn(data, "progressCurrent") ? normalizeProgress(data.progressCurrent) : normalizeProgress(existing?.progressCurrent);
@@ -852,3 +984,4 @@ document.addEventListener("change", (event) => {
 });
 
 render();
+initializeCloud();
