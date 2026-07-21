@@ -399,6 +399,20 @@ function bookRow(book, selectable = false) {
   </button>`;
 }
 
+function statusBookRow(book, selectable = false) {
+  const content = `${cover(book, true)}
+    <span class="book-row-copy"><strong>${escapeHtml(book.title)}</strong><small>${escapeHtml(book.author || "未署名")}</small></span>`;
+  if (selectable) {
+    return `<article class="book-row status-book-row selectable-book">
+    ${content}
+    ${selectionControl("book", book.id, "选择这本书")}
+  </article>`;
+  }
+  return `<button class="book-row status-book-row" data-book="${book.id}">
+    ${content}
+  </button>`;
+}
+
 function renderCoverBookCard(book, selectable = false) {
   const content = `${cover(book)}<strong>${escapeHtml(book.title)}</strong>`;
   if (selectable) return `<article class="book-card selectable-book">${selectionControl("book", book.id, "选择这本书")}${content}</article>`;
@@ -506,7 +520,7 @@ function renderStatusView() {
 
 function renderStatusCategory(books, selectable = false) {
   const grouped = groupBy(books, (book) => book.category || "未分类");
-  return Object.entries(grouped).map(([category, entries]) => `<section class="status-group"><p>${escapeHtml(category)}</p><div class="book-list">${entries.map((book) => bookRow(book, selectable)).join("")}</div></section>`).join("") || empty("暂时没有");
+  return Object.entries(grouped).map(([category, entries]) => `<section class="status-group"><p>${escapeHtml(category)}</p><div class="book-list">${entries.map((book) => statusBookRow(book, selectable)).join("")}</div></section>`).join("") || empty("暂时没有");
 }
 
 function renderCategoryPage(category) {
