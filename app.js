@@ -512,10 +512,9 @@ function renderCoverView() {
 }
 
 function renderStatusView() {
-  const layout = state.route.statusLayout;
   const statuses = [["reading", "🌱 阅读中"], ["pending", "📝 待整理"], ["organized", "🌳 已整理"]];
   const selectable = bookDeleteActive();
-  return `<section class="status-board"><div class="toolbar"><p>每本书都可以随时回到任何阶段。</p><div class="segmented"><button class="${layout === "category" ? "active" : ""}" data-action="status-layout" data-layout="category">分类显示</button><button class="${layout === "cover" ? "active" : ""}" data-action="status-layout" data-layout="cover">封面显示</button></div></div><div class="status-columns">${statuses.map(([status, label]) => { const books = state.books.filter((book) => book.status === status); return `<article class="status-column"><header><h2>${label}</h2></header>${layout === "cover" ? `<div class="mini-cover-grid">${books.map((book) => renderMiniBookCard(book, selectable)).join("") || empty("暂时没有")}</div>` : renderStatusCategory(books, selectable)}</article>`; }).join("")}</div></section>`;
+  return `<section class="status-board"><div class="toolbar"><p>每本书都可以随时回到任何阶段。</p></div><div class="status-columns">${statuses.map(([status, label]) => { const books = state.books.filter((book) => book.status === status); return `<article class="status-column"><header><h2>${label}</h2></header>${renderStatusCategory(books, selectable)}</article>`; }).join("")}</div></section>`;
 }
 
 function renderStatusCategory(books, selectable = false) {
@@ -704,7 +703,6 @@ function onAction(event) {
   if (action === "wishes") setRoute({ page: "wishes", query: "", deleteMode: "" });
   if (action === "view") setRoute({ page: "home", view: target.dataset.view, deleteMode: "" });
   if (action === "category") setRoute({ page: "category", category: target.dataset.category, deleteMode: "" });
-  if (action === "status-layout") setRoute({ statusLayout: target.dataset.layout });
   if (action === "direction") setRoute({ direction: state.route.direction === "asc" ? "desc" : "asc" });
   if (action === "view-menu") { setRoute({ page: "home", view: state.route.view === "category" ? "cover" : state.route.view === "cover" ? "status" : "category", deleteMode: "" }); }
   if (action === "theme") { const themes = ["white", "black", "pink", "green", "blue"]; state.theme = themes[(themes.indexOf(state.theme) + 1) % themes.length]; saveState(); render(); }
