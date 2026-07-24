@@ -115,7 +115,8 @@ button {
 
 .cloud-account-panel {
   display: grid;
-  gap: 14px;
+  gap: 18px;
+  padding: 22px 24px 24px;
 }
 
 .cloud-account-panel p {
@@ -129,14 +130,14 @@ button {
 }
 
 .cloud-trash {
-  display: grid;
-  gap: 10px;
-  border-top: 1px solid var(--line);
-  border-bottom: 1px solid var(--line);
-  padding: 14px 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--paper-2);
+  overflow: hidden;
 }
 
-.cloud-trash-head,
+.cloud-trash-summary,
+.cloud-trash-tools,
 .cloud-trash-item {
   display: flex;
   align-items: center;
@@ -144,31 +145,68 @@ button {
   gap: 12px;
 }
 
-.cloud-trash-head div,
+.cloud-trash-summary {
+  min-height: 68px;
+  padding: 14px 16px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.cloud-trash-summary::-webkit-details-marker {
+  display: none;
+}
+
+.cloud-trash-summary > span,
 .cloud-trash-item span {
   display: grid;
   gap: 3px;
   min-width: 0;
 }
 
-.cloud-trash-head small,
+.cloud-trash-summary small,
 .cloud-trash-item small,
 .cloud-trash-note {
   color: var(--muted);
   font-size: 12px;
 }
 
+.cloud-trash-summary i {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: 20px;
+  font-style: normal;
+  transition: transform 160ms ease;
+}
+
+.cloud-trash[open] .cloud-trash-summary i {
+  transform: rotate(180deg);
+}
+
+.cloud-trash-body {
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+  padding: 16px;
+}
+
+.cloud-trash-tools p {
+  font-size: 13px;
+}
+
 .cloud-trash-list {
   display: grid;
-  gap: 6px;
+  gap: 8px;
   max-height: 280px;
   overflow-y: auto;
+  padding-right: 4px;
 }
 
 .cloud-trash-item {
+  border: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
   border-radius: var(--radius);
   background: var(--paper-2);
-  padding: 9px 10px;
+  padding: 11px 12px;
 }
 
 .cloud-trash-item strong {
@@ -178,7 +216,7 @@ button {
 }
 
 .cloud-trash-item .quiet-button,
-.cloud-trash-head .quiet-button {
+.cloud-trash-tools .quiet-button {
   flex-shrink: 0;
   min-height: 34px;
   padding: 0 10px;
@@ -186,6 +224,19 @@ button {
 
 .cloud-account-panel .cloud-trash-note {
   margin: 0;
+}
+
+@media (max-width: 560px) {
+  .cloud-account-panel {
+    gap: 16px;
+    padding: 18px;
+  }
+
+  .cloud-trash-summary,
+  .cloud-trash-body {
+    padding-left: 14px;
+    padding-right: 14px;
+  }
 }
 
 .search {

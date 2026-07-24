@@ -626,14 +626,20 @@ function wishlistTrashEntries() {
 function renderWishlistTrash() {
   const entries = wishlistTrashEntries();
   if (!entries.length) return "";
-  return `<section class="cloud-trash">
-    <div class="cloud-trash-head"><div><strong>最近删除</strong><small>${entries.length} 本 · 最多保留 ${WISHLIST_TRASH_RETENTION_DAYS} 天</small></div><button type="button" class="quiet-button" data-action="restore-all-wishes">全部找回</button></div>
-    <div class="cloud-trash-list">${entries.map(({ batchId, daysLeft, wish }) => `<article class="cloud-trash-item">
-      <span><strong>${escapeHtml(wish.title)}</strong><small>${escapeHtml(wish.author || "未署名")} · 剩 ${daysLeft} 天</small></span>
-      <button type="button" class="quiet-button" data-action="restore-wish" data-batch="${escapeHtml(batchId)}" data-wish="${escapeHtml(wish.id)}">找回</button>
-    </article>`).join("")}</div>
-    <p class="cloud-trash-note">超过 ${WISHLIST_TRASH_RETENTION_DAYS} 天仍未找回的书，会由云端自动永久清除。</p>
-  </section>`;
+  return `<details class="cloud-trash">
+    <summary class="cloud-trash-summary">
+      <span><strong>最近删除</strong><small>${entries.length} 本 · 最多保留 ${WISHLIST_TRASH_RETENTION_DAYS} 天</small></span>
+      <i aria-hidden="true">⌄</i>
+    </summary>
+    <div class="cloud-trash-body">
+      <div class="cloud-trash-tools"><p>需要时可以逐本找回，也可以一次全部恢复。</p><button type="button" class="quiet-button" data-action="restore-all-wishes">全部找回</button></div>
+      <div class="cloud-trash-list">${entries.map(({ batchId, daysLeft, wish }) => `<article class="cloud-trash-item">
+        <span><strong>${escapeHtml(wish.title)}</strong><small>${escapeHtml(wish.author || "未署名")} · 剩 ${daysLeft} 天</small></span>
+        <button type="button" class="quiet-button" data-action="restore-wish" data-batch="${escapeHtml(batchId)}" data-wish="${escapeHtml(wish.id)}">找回</button>
+      </article>`).join("")}</div>
+      <p class="cloud-trash-note">超过 ${WISHLIST_TRASH_RETENTION_DAYS} 天仍未找回的书，会由云端自动永久清除。</p>
+    </div>
+  </details>`;
 }
 
 function openCloudAccount() {
