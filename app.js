@@ -2,6 +2,7 @@ const STORAGE_KEY = "personal-reading-library-v1";
 const ATTACHMENT_DB = "personal-reading-library-files";
 const ATTACHMENT_STORE = "attachments";
 const MAX_ATTACHMENT_SIZE = 25 * 1024 * 1024;
+const WISHLIST_TRASH_RETENTION_DAYS = 5;
 const SUPABASE_URL = "https://pvzixscmdbzxsaywedhs.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_gJpnWRkLJnbcJRm0IU2YJA_hSLvn6jV";
 const BOOK_CATEGORIES = ["人物传记", "历史", "认知", "心理", "商业", "小说", "其他"];
@@ -207,7 +208,12 @@ function saveState() {
 }
 
 function stateForStorage() {
-  return { ...state, route: undefined };
+  const retention = WISHLIST_TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  const prunedWishesArchive = (Array.isArray(state.prunedWishesArchive) ? state.prunedWishesArchive : []).filter((batch) => {
+    const deletedAt = new Date(batch.deletedAt).getTime();
+    return Number.isFinite(deletedAt) && deletedAt + retention > Date.now() && batch.wishes?.length;
+  });
+  return { ...state, prunedWishesArchive, route: undefined };
 }
 
 function queueCloudSave() {
@@ -601,13 +607,42 @@ function openModal(title, content) {
 function closeModal() { const root = $("#modal-root"); if (root) root.innerHTML = ""; }
 function options(values, selected = "") { return values.map((value) => `<option value="${escapeHtml(value)}" ${value === selected ? "selected" : ""}>${escapeHtml(value)}</option>`).join(""); }
 
+function wishlistTrashEntries() {
+  const now = Date.now();
+  const retention = WISHLIST_TRASH_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+  return (Array.isArray(state.prunedWishesArchive) ? state.prunedWishesArchive : []).flatMap((batch) => {
+    const deletedAt = new Date(batch.deletedAt).getTime();
+    if (!Number.isFinite(deletedAt) || deletedAt + retention <= now) return [];
+    const daysLeft = Math.max(1, Math.ceil((deletedAt + retention - now) / (24 * 60 * 60 * 1000)));
+    return (Array.isArray(batch.wishes) ? batch.wishes : []).map((wish) => ({
+      batchId: batch.batchId,
+      deletedAt: batch.deletedAt,
+      daysLeft,
+      wish,
+    }));
+  });
+}
+
+function renderWishlistTrash() {
+  const entries = wishlistTrashEntries();
+  if (!entries.length) return "";
+  return `<section class="cloud-trash">
+    <div class="cloud-trash-head"><div><strong>最近删除</strong><small>${entries.length} 本 · 最多保留 ${WISHLIST_TRASH_RETENTION_DAYS} 天</small></div><button type="button" class="quiet-button" data-action="restore-all-wishes">全部找回</button></div>
+    <div class="cloud-trash-list">${entries.map(({ batchId, daysLeft, wish }) => `<article class="cloud-trash-item">
+      <span><strong>${escapeHtml(wish.title)}</strong><small>${escapeHtml(wish.author || "未署名")} · 剩 ${daysLeft} 天</small></span>
+      <button type="button" class="quiet-button" data-action="restore-wish" data-batch="${escapeHtml(batchId)}" data-wish="${escapeHtml(wish.id)}">找回</button>
+    </article>`).join("")}</div>
+    <p class="cloud-trash-note">超过 ${WISHLIST_TRASH_RETENTION_DAYS} 天仍未找回的书，会由云端自动永久清除。</p>
+  </section>`;
+}
+
 function openCloudAccount() {
   if (!cloudClient) {
     window.alert("云端同步组件暂时没有加载成功，请刷新页面后再试。");
     return;
   }
   if (cloudUser) {
-    openModal("云端书库", `<div class="cloud-account-panel"><p class="cloud-account-email">${escapeHtml(cloudUser.email || "已登录")}</p><p>登录同一账号后，其他浏览器和设备会读取同一份书库。</p><div class="form-actions"><button type="button" class="quiet-button" data-action="cloud-sign-out">退出登录</button><button type="button" class="primary-button" data-action="cloud-sync-now">立即同步</button></div></div>`);
+    openModal("云端书库", `<div class="cloud-account-panel"><p class="cloud-account-email">${escapeHtml(cloudUser.email || "已登录")}</p><p>登录同一账号后，其他浏览器和设备会读取同一份书库。</p>${renderWishlistTrash()}<div class="form-actions"><button type="button" class="quiet-button" data-action="cloud-sign-out">退出登录</button><button type="button" class="primary-button" data-action="cloud-sync-now">立即同步</button></div></div>`);
     return;
   }
   openModal("登录云端书库", `<form data-form="cloud-auth" class="form-grid cloud-auth-form"><div class="span-2 import-intro"><strong>让书库在不同设备保持一致</strong><p>第一次使用请选择“注册并同步”；已有账号直接登录。首次注册可能需要到邮箱点击确认链接。</p></div><label class="span-2">邮箱<input required type="email" name="email" autocomplete="email" placeholder="你的邮箱"></label><label class="span-2">密码<input required minlength="8" type="password" name="password" autocomplete="current-password" placeholder="至少 8 位"></label><footer class="form-actions"><button class="quiet-button" name="authMode" value="signup">注册并同步</button><button class="primary-button" name="authMode" value="signin">登录</button></footer></form>`);
@@ -709,6 +744,8 @@ function onAction(event) {
   if (action === "cloud-account") openCloudAccount();
   if (action === "cloud-sync-now") { pushCloudState().then((ok) => { if (ok) { closeModal(); window.alert("云端书库已同步。"); } else window.alert("同步失败，请稍后再试。"); }); }
   if (action === "cloud-sign-out") { cloudClient?.auth.signOut().then(() => { closeModal(); cloudUser = null; cloudStatus = "local"; render(); }); }
+  if (action === "restore-wish") restorePrunedWish(target.dataset.batch, target.dataset.wish);
+  if (action === "restore-all-wishes") restoreAllPrunedWishes();
   if (action === "open-add") openAddMenu();
   if (action === "close-modal") closeModal();
   if (action === "add-book") openBookForm();
@@ -789,6 +826,30 @@ function startWish(wishId) {
   const wish = state.wishes.splice(index, 1)[0];
   const book = { id: uid(), title: wish.title, author: wish.author, category: wish.category, source: wish.source, reason: wish.reason, startDate: today(), firstImpression: "", expectation: "", status: "reading", createdAt: today(), lastRead: wish.lastRead || today(), color: "rose", coverImage: wish.coverImage, wereadUrl: wish.wereadUrl, wereadBookId: wish.wereadBookId, progressCurrent: 0, progressTotal: 0, progressUnit: "页", dailyCards: [], notes: [] };
   state.books.unshift(book); saveState(); closeModal(); setRoute({ page: "book", bookId: book.id, deleteMode: "", noteFilter: "all" });
+}
+
+function restorePrunedWish(batchId, wishId) {
+  const batches = Array.isArray(state.prunedWishesArchive) ? state.prunedWishesArchive : [];
+  const batch = batches.find((entry) => entry.batchId === batchId);
+  const wish = batch?.wishes?.find((entry) => entry.id === wishId);
+  if (!wish) return;
+  if (!state.wishes.some((entry) => entry.id === wish.id)) state.wishes.unshift(wish);
+  batch.wishes = batch.wishes.filter((entry) => entry.id !== wishId);
+  state.prunedWishesArchive = batches.filter((entry) => entry.wishes?.length);
+  saveState();
+  openCloudAccount();
+}
+
+function restoreAllPrunedWishes() {
+  const activeEntries = wishlistTrashEntries();
+  if (!activeEntries.length) return;
+  const existingIds = new Set(state.wishes.map((wish) => wish.id));
+  const restored = activeEntries.map((entry) => entry.wish).filter((wish) => !existingIds.has(wish.id));
+  state.wishes.unshift(...restored);
+  const activeBatchIds = new Set(activeEntries.map((entry) => entry.batchId));
+  state.prunedWishesArchive = (state.prunedWishesArchive || []).filter((batch) => !activeBatchIds.has(batch.batchId));
+  saveState();
+  openCloudAccount();
 }
 
 function getSelectedItemIds(kind) {
