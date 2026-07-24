@@ -244,7 +244,7 @@ async function applyCloudSession(session) {
     cloudStatus = cloudClient ? "local" : "unavailable";
     cloudReady = true;
     render();
-    return;
+    return false;
   }
   cloudStatus = "loading";
   render();
@@ -253,7 +253,7 @@ async function applyCloudSession(session) {
     cloudStatus = "error";
     cloudReady = true;
     render();
-    return;
+    return false;
   }
   if (data?.data) {
     state = normalizeLibraryState({ ...starterState, ...data.data, route: state.route });
@@ -268,12 +268,13 @@ async function applyCloudSession(session) {
       cloudStatus = "error";
       cloudReady = true;
       render();
-      return;
+      return false;
     }
   }
   cloudStatus = "synced";
   cloudReady = true;
   render();
+  return true;
 }
 
 async function initializeCloud() {
@@ -557,8 +558,36 @@ function renderBook(book) {
   return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><div class="detail-layout"><aside class="book-profile">${cover(book)}<div><p class="eyebrow">${escapeHtml(book.category || "未分类")}</p><h2>${escapeHtml(book.title)}</h2><p class="book-author">${escapeHtml(book.author || "未署名")}</p></div><button class="quiet-button full" data-action="change-cover" data-book="${book.id}">更换封面</button><label class="field-label">阅读阶段<select data-status="${book.id}"><option value="reading" ${book.status === "reading" ? "selected" : ""}>🌱 阅读中</option><option value="pending" ${book.status === "pending" ? "selected" : ""}>📝 待整理</option><option value="organized" ${book.status === "organized" ? "selected" : ""}>🌳 已整理</option></select></label><dl class="book-facts"><div><dt>开始阅读</dt><dd>${formatDate(book.startDate)}</dd></div><div><dt>来源</dt><dd>${escapeHtml(book.source || "未记录")}</dd></div><div class="progress-fact"><dt>阅读进度</dt><dd>${escapeHtml(progressText(book))}<span class="progress-meter" aria-hidden="true"><i style="width: ${percent}%"></i></span></dd></div></dl></aside><div class="detail-stack"><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">FIRST MEET</p><h2>初见</h2></div></div>${renderFirstMeetCard(book)}</section><section class="detail-panel"><div class="section-header"><div><p class="eyebrow">READING DAYS</p><h2>每日卡片</h2></div>${dailyActions}</div><div class="${timelineClass}">${cards.map((card) => renderDailyCard(card, book.id, dailyDeleteActive)).join("") || empty("还没有每日卡片。一次阅读，留下一张就够了。")}</div></section><section class="detail-panel notes-panel"><div class="section-header"><div><p class="eyebrow">GROWING NOTES</p><h2>整理区</h2></div>${noteHeaderTools}</div><div class="notes-grid notes-tray">${visibleNotes.map((note) => renderNoteCard(note, book.id, noteDeleteActive)).join("") || empty(notesEmptyText)}</div></section></div></div>`, { page: "book", title: book.title, subtitle: "这本书在你这里留下的痕迹" });
 }
 
+function renderWishCard(wish) {
+  return `<article class="wish-card editable-region" data-wish-id="${escapeHtml(wish.id)}">
+    ${cover(wish, true)}
+    <div class="wish-card-copy"><h3>${escapeHtml(wish.title)}</h3><p class="book-author">${escapeHtml(wish.author || "未署名")}</p></div>
+    <div class="wish-actions">
+      ${wish.wereadUrl ? `<button class="wish-action-link" data-action="open-wish-url" data-wish="${escapeHtml(wish.id)}" title="在微信读书打开">微信读书 ↗</button>` : ""}
+      <button class="wish-action-start" data-action="start-wish" data-wish="${escapeHtml(wish.id)}">开始读</button>
+    </div>
+  </article>`;
+}
+
 function renderWishes() {
-  return renderAppShell(`<section class="book-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button></section><section class="wishlist-panel"><div class="wishlist-head"><div><p class="eyebrow">SOMEDAY SHELF</p><h2>愿望池</h2><p>微信读书里的未读书籍，先在这里等候。</p></div><button class="primary-button" data-action="random-wish">🎲 随机抽一本</button></div><div class="wishlist-grid">${state.wishes.map((wish) => `<article class="wish-card editable-region" data-wish-id="${escapeHtml(wish.id)}"><div><span class="wish-priority">♡ 未读</span><p class="eyebrow">${escapeHtml(wish.category || "其他")}</p><h3>${escapeHtml(wish.title)}</h3><p class="book-author">${escapeHtml(wish.author || "未署名")}</p></div><div class="wish-meta"><small>${formatDate(wish.startDate || wish.createdAt)}</small><small>来自 ${escapeHtml(wish.source || "未记录")}</small></div><div class="wish-actions">${wish.wereadUrl ? `<button class="quiet-button" data-action="open-wish-url" data-wish="${wish.id}">微信读书 ↗</button>` : ""}<button class="quiet-button" data-action="start-wish" data-wish="${wish.id}">开始阅读</button></div></article>`).join("") || empty("愿望池很安静，等下一本想读的书。")}</div></section>`, { page: "wishes", title: "愿望池", subtitle: "还没相遇，但已经为它们留了位置" });
+  const grouped = groupBy(state.wishes, (wish) => wish.category || "其他");
+  const categories = [...state.categories, ...Object.keys(grouped).filter((name) => !state.categories.includes(name))].filter((name) => grouped[name]?.length);
+  const activeCategory = categories.includes(state.route.wishCategory) ? state.route.wishCategory : "";
+  const categorySections = categories.map((name) => {
+    const wishes = grouped[name];
+    const isOpen = activeCategory === name;
+    return `<section class="wish-category-section ${isOpen ? "is-open" : ""}">
+      <button class="wish-category-summary" data-action="wish-category" data-category="${escapeHtml(name)}" aria-expanded="${isOpen}">
+        <span><strong>${escapeHtml(name)}</strong><small>${wishes.length} 本</small></span>
+        <i aria-hidden="true">${isOpen ? "−" : "+"}</i>
+      </button>
+      ${isOpen ? `<div class="wishlist-grid">${wishes.map(renderWishCard).join("")}</div>` : ""}
+    </section>`;
+  }).join("");
+  const content = state.wishes.length
+    ? `<div class="wishlist-overview"><div><strong>${state.wishes.length}</strong><span>本想读的书，已按主题收好</span></div><p>打开一个分类，慢慢挑下一本。</p></div><div class="wishlist-categories">${categorySections}</div>`
+    : empty("愿望池很安静，等下一本想读的书。");
+  return renderAppShell(`<section class="book-nav wishlist-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button><button class="primary-button" data-action="random-wish">🎲 随机抽一本</button></section><section class="wishlist-panel">${content}</section>`, { page: "wishes", title: "愿望池", subtitle: "按主题收好想读的书，不必一次面对全部" });
 }
 
 function renderSearch(query) {
@@ -585,10 +614,6 @@ function render() {
   $("#app").innerHTML = html;
   if (page === "book" && book?.wereadUrl) {
     $(".book-profile [data-action=\"change-cover\"]")?.insertAdjacentHTML("afterend", `<button class="quiet-button full book-source-link" data-action="open-book-url" data-book="${escapeHtml(book.id)}">在微信读书打开 ↗</button>`);
-  }
-  if (page === "wishes") {
-    $(".wishlist-head")?.remove();
-    $(".book-nav")?.insertAdjacentHTML("afterbegin", '<button class="primary-button" data-action="random-wish">🎲 随机抽一本</button>');
   }
   if (page === "home") $(".heading-tools")?.append($(".view-tabs"));
   if (page === "home" && state.route.view === "cover") $(".cover-view .toolbar > span")?.remove();
@@ -648,7 +673,7 @@ function openCloudAccount() {
     return;
   }
   if (cloudUser) {
-    openModal("云端书库", `<div class="cloud-account-panel"><p class="cloud-account-email">${escapeHtml(cloudUser.email || "已登录")}</p><p>登录同一账号后，其他浏览器和设备会读取同一份书库。</p>${renderWishlistTrash()}<div class="form-actions"><button type="button" class="quiet-button" data-action="cloud-sign-out">退出登录</button><button type="button" class="primary-button" data-action="cloud-sync-now">立即同步</button></div></div>`);
+    openModal("云端书库", `<div class="cloud-account-panel"><p class="cloud-account-email">${escapeHtml(cloudUser.email || "已登录")}</p><p>登录同一账号后，其他浏览器和设备会读取同一份书库。</p>${renderWishlistTrash()}<div class="form-actions"><button type="button" class="quiet-button" data-action="cloud-sign-out">退出登录</button><button type="button" class="primary-button" data-action="cloud-sync-now">从云端刷新</button></div></div>`);
     return;
   }
   openModal("登录云端书库", `<form data-form="cloud-auth" class="form-grid cloud-auth-form"><div class="span-2 import-intro"><strong>让书库在不同设备保持一致</strong><p>第一次使用请选择“注册并同步”；已有账号直接登录。首次注册可能需要到邮箱点击确认链接。</p></div><label class="span-2">邮箱<input required type="email" name="email" autocomplete="email" placeholder="你的邮箱"></label><label class="span-2">密码<input required minlength="8" type="password" name="password" autocomplete="current-password" placeholder="至少 8 位"></label><footer class="form-actions"><button class="quiet-button" name="authMode" value="signup">注册并同步</button><button class="primary-button" name="authMode" value="signin">登录</button></footer></form>`);
@@ -742,13 +767,14 @@ function onAction(event) {
   if (!action) return;
   if (action === "home") setRoute({ page: "home", query: "", deleteMode: "" });
   if (action === "wishes") setRoute({ page: "wishes", query: "", deleteMode: "" });
+  if (action === "wish-category") setRoute({ wishCategory: state.route.wishCategory === target.dataset.category ? "" : target.dataset.category });
   if (action === "view") setRoute({ page: "home", view: target.dataset.view, deleteMode: "" });
   if (action === "category") setRoute({ page: "category", category: target.dataset.category, deleteMode: "" });
   if (action === "direction") setRoute({ direction: state.route.direction === "asc" ? "desc" : "asc" });
   if (action === "view-menu") { setRoute({ page: "home", view: state.route.view === "category" ? "cover" : state.route.view === "cover" ? "status" : "category", deleteMode: "" }); }
   if (action === "theme") { const themes = ["white", "black", "pink", "green", "blue"]; state.theme = themes[(themes.indexOf(state.theme) + 1) % themes.length]; saveState(); render(); }
   if (action === "cloud-account") openCloudAccount();
-  if (action === "cloud-sync-now") { pushCloudState().then((ok) => { if (ok) { closeModal(); window.alert("云端书库已同步。"); } else window.alert("同步失败，请稍后再试。"); }); }
+  if (action === "cloud-sync-now") { applyCloudSession({ user: cloudUser }).then((ok) => { if (ok) { closeModal(); window.alert("已从云端读取最新书库。"); } else window.alert("同步失败，请稍后再试。"); }); }
   if (action === "cloud-sign-out") { cloudClient?.auth.signOut().then(() => { closeModal(); cloudUser = null; cloudStatus = "local"; render(); }); }
   if (action === "restore-wish") restorePrunedWish(target.dataset.batch, target.dataset.wish);
   if (action === "restore-all-wishes") restoreAllPrunedWishes();
