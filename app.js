@@ -563,7 +563,7 @@ function renderWishCard(wish) {
     ${cover(wish, true)}
     <div class="wish-card-copy"><h3>${escapeHtml(wish.title)}</h3><p class="book-author">${escapeHtml(wish.author || "未署名")}</p></div>
     <div class="wish-actions">
-      ${wish.wereadUrl ? `<button class="wish-action-link" data-action="open-wish-url" data-wish="${escapeHtml(wish.id)}" title="在微信读书打开">微信读书 ↗</button>` : ""}
+      ${wish.wereadUrl ? `<button class="wish-action-link" data-action="open-wish-url" data-wish="${escapeHtml(wish.id)}" title="在微信读书打开">微信读书</button>` : ""}
       <button class="wish-action-start" data-action="start-wish" data-wish="${escapeHtml(wish.id)}">开始读</button>
     </div>
   </article>`;
@@ -618,7 +618,7 @@ function render() {
   if (page === "home") $(".heading-tools")?.append($(".view-tabs"));
   if (page === "home" && state.route.view === "cover") $(".cover-view .toolbar > span")?.remove();
   if (page === "home" && state.route.view === "status") $(".status-board .toolbar > p")?.remove();
-  document.querySelectorAll(".book-nav .quiet-button").forEach((button) => { button.textContent = "返回图书馆"; });
+  document.querySelectorAll('.book-nav [data-action="home"]').forEach((button) => { button.textContent = "返回图书馆"; });
 }
 
 function groupBy(items, keyFn) {
