@@ -812,6 +812,7 @@ function onAction(event) {
   if (action === "change-cover") openCoverPicker(target.dataset.book);
   if (action === "random-pick") scheduleRandomPick(event.detail);
   if (action === "random-wish-category") pickRandomWishCategory(target.dataset.category);
+  if (action === "random-wish-in-category") pickRandomWish(target.dataset.category);
   if (action === "open-wish-category") { closeModal(); setRoute({ page: "wishes", wishCategory: target.dataset.category }); }
   if (action === "start-wish") startWish(target.dataset.wish);
 }
@@ -849,9 +850,10 @@ function openCoverPicker(bookId) {
   openModal("更换封面", `<form data-form="cover" class="cover-picker"><input type="hidden" name="bookId" value="${bookId}"><p>从你的设备选择一张照片。图片只保存在当前浏览器里。</p><label class="upload-area">选择照片<input required type="file" name="cover" accept="image/*"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">使用这张封面</button></footer></form>`);
 }
 
-function pickRandomWish() {
-  if (!state.wishes.length) return;
-  const wish = state.wishes[Math.floor(Math.random() * state.wishes.length)];
+function pickRandomWish(category = "") {
+  const pool = category ? state.wishes.filter((wish) => (wish.category || "其他") === category) : state.wishes;
+  if (!pool.length) return;
+  const wish = pool[Math.floor(Math.random() * pool.length)];
   openModal("今天读这一本", `<div class="random-pick"><p class="eyebrow">A SMALL READING WINDOW</p><h2>${escapeHtml(wish.title)}</h2><p>${escapeHtml(wish.author || "未署名")} · ${escapeHtml(wish.category || "其他")}</p><p>也许现在正是打开它的时刻。</p><div class="form-actions"><button class="quiet-button" data-action="close-modal">换个时间</button><button class="primary-button" data-action="start-wish" data-wish="${wish.id}">开始阅读</button></div></div>`);
 }
 
@@ -875,7 +877,7 @@ function pickRandomWishCategory(excludedCategory = "") {
   const pool = categories.length > 1 ? categories.filter((category) => category !== excludedCategory) : categories;
   const category = pool[Math.floor(Math.random() * pool.length)];
   const count = grouped[category].length;
-  openModal("今天逛这个分类", `<div class="random-pick random-category-pick"><p class="eyebrow">A CATEGORY FOR TODAY</p><div class="random-category-result"><span aria-hidden="true">🎯</span><h2>${escapeHtml(category)}</h2><p>${count} 本书在这里等你挑选</p></div><div class="form-actions"><button class="quiet-button" data-action="random-wish-category" data-category="${escapeHtml(category)}">再抽一次</button><button class="primary-button" data-action="open-wish-category" data-category="${escapeHtml(category)}">去挑一本</button></div></div>`);
+  openModal("今天逛这个分类", `<div class="random-pick random-category-pick"><p class="eyebrow">A CATEGORY FOR TODAY</p><div class="random-category-result"><span aria-hidden="true">🎯</span><h2>${escapeHtml(category)}</h2><p>${count} 本书在这里等你挑选</p></div><div class="form-actions"><button class="quiet-button" data-action="random-wish-in-category" data-category="${escapeHtml(category)}">从该分类抽一本</button><button class="primary-button" data-action="open-wish-category" data-category="${escapeHtml(category)}">去挑一本</button></div></div>`);
 }
 
 function startWish(wishId) {
