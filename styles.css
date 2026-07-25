@@ -951,12 +951,6 @@ select {
   align-items: center;
 }
 
-.wishlist-random-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
 .wishlist-panel {
   overflow: hidden;
 }

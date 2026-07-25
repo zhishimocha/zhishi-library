@@ -12,6 +12,7 @@ let cloudUser = null;
 let cloudReady = false;
 let cloudStatus = cloudClient ? "local" : "unavailable";
 let cloudSaveTimer = null;
+let randomPickTimer = null;
 
 const today = () => new Date().toISOString().slice(0, 10);
 const dateFromUnix = (value) => Number(value) > 0 ? new Date(Number(value) * 1000).toISOString().slice(0, 10) : "";
@@ -587,7 +588,7 @@ function renderWishes() {
   const content = state.wishes.length
     ? `<div class="wishlist-overview"><div><strong>${state.wishes.length}</strong><span>本已入库</span></div></div><div class="wishlist-categories">${categorySections}</div>`
     : empty("愿望池很安静，等下一本想读的书。");
-  return renderAppShell(`<section class="book-nav wishlist-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button><div class="wishlist-random-actions"><button class="quiet-button" data-action="random-wish-category">🎯 随机分类</button><button class="primary-button" data-action="random-wish">🎲 随机抽一本</button></div></section><section class="wishlist-panel">${content}</section>`, { page: "wishes", title: "愿望池", subtitle: "按主题收好想读的书，不必一次面对全部" });
+  return renderAppShell(`<section class="book-nav wishlist-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button><button class="primary-button" data-action="random-pick" title="单击随机抽一本，双击随机抽分类">🎲 随机抽取</button></section><section class="wishlist-panel">${content}</section>`, { page: "wishes", title: "愿望池", subtitle: "按主题收好想读的书，不必一次面对全部" });
 }
 
 function renderSearch(query) {
@@ -809,7 +810,7 @@ function onAction(event) {
   }
   if (action === "open-attachment") openStoredAttachment(target.dataset.attachment, target.dataset.preview === "true");
   if (action === "change-cover") openCoverPicker(target.dataset.book);
-  if (action === "random-wish") pickRandomWish();
+  if (action === "random-pick") scheduleRandomPick(event.detail);
   if (action === "random-wish-category") pickRandomWishCategory(target.dataset.category);
   if (action === "open-wish-category") { closeModal(); setRoute({ page: "wishes", wishCategory: target.dataset.category }); }
   if (action === "start-wish") startWish(target.dataset.wish);
@@ -852,6 +853,19 @@ function pickRandomWish() {
   if (!state.wishes.length) return;
   const wish = state.wishes[Math.floor(Math.random() * state.wishes.length)];
   openModal("今天读这一本", `<div class="random-pick"><p class="eyebrow">A SMALL READING WINDOW</p><h2>${escapeHtml(wish.title)}</h2><p>${escapeHtml(wish.author || "未署名")} · ${escapeHtml(wish.category || "其他")}</p><p>也许现在正是打开它的时刻。</p><div class="form-actions"><button class="quiet-button" data-action="close-modal">换个时间</button><button class="primary-button" data-action="start-wish" data-wish="${wish.id}">开始阅读</button></div></div>`);
+}
+
+function scheduleRandomPick(clickCount = 1) {
+  window.clearTimeout(randomPickTimer);
+  if (clickCount > 1) {
+    randomPickTimer = null;
+    pickRandomWishCategory();
+    return;
+  }
+  randomPickTimer = window.setTimeout(() => {
+    randomPickTimer = null;
+    pickRandomWish();
+  }, 300);
 }
 
 function pickRandomWishCategory(excludedCategory = "") {
