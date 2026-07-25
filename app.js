@@ -585,9 +585,9 @@ function renderWishes() {
     </section>`;
   }).join("");
   const content = state.wishes.length
-    ? `<div class="wishlist-overview"><div><strong>${state.wishes.length}</strong><span>本想读的书，已按主题收好</span></div><p>打开一个分类，慢慢挑下一本。</p></div><div class="wishlist-categories">${categorySections}</div>`
+    ? `<div class="wishlist-overview"><div><strong>${state.wishes.length}</strong><span>本已入库</span></div></div><div class="wishlist-categories">${categorySections}</div>`
     : empty("愿望池很安静，等下一本想读的书。");
-  return renderAppShell(`<section class="book-nav wishlist-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button><button class="primary-button" data-action="random-wish">🎲 随机抽一本</button></section><section class="wishlist-panel">${content}</section>`, { page: "wishes", title: "愿望池", subtitle: "按主题收好想读的书，不必一次面对全部" });
+  return renderAppShell(`<section class="book-nav wishlist-nav"><button class="quiet-button" data-action="home">返回图书馆 →</button><div class="wishlist-random-actions"><button class="quiet-button" data-action="random-wish-category">🎯 随机分类</button><button class="primary-button" data-action="random-wish">🎲 随机抽一本</button></div></section><section class="wishlist-panel">${content}</section>`, { page: "wishes", title: "愿望池", subtitle: "按主题收好想读的书，不必一次面对全部" });
 }
 
 function renderSearch(query) {
@@ -743,7 +743,7 @@ function parseWeReadImport(raw = "") {
     return importedBookFromObject({ title, author, url });
   }).filter((book) => book.title && !/^https?:\/\//i.test(book.title));
 }
-function openWishForm(wish = {}) { openModal(wish.id ? "编辑未读书籍" : "放进愿望池", `<form data-form="wish" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(wish.id || "")}"><label>书名<input required name="title" value="${escapeHtml(wish.title || "")}" placeholder="例如：乔布斯传"></label><label>作者<input name="author" value="${escapeHtml(wish.author || "")}" placeholder="作者"></label><label>分类<select name="category">${options(state.categories, wish.category || "其他")}</select></label><label>开始阅读日期<input type="date" name="startDate" value="${escapeHtml(wish.startDate || wish.createdAt || today())}"></label><label>来源<input name="source" value="${escapeHtml(wish.source || "")}" placeholder="书店、朋友推荐、微信读书…"></label><label>阅读阶段<select name="status"><option value="wish" selected>♡ 未读 / 愿望池</option></select></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${wish.id ? "保存修改" : "放进愿望池"}</button></footer></form>`); }
+function openWishForm(wish = {}) { openModal(wish.id ? "编辑未读书籍" : "放进愿望池", `<form data-form="wish" class="form-grid"><input type="hidden" name="id" value="${escapeHtml(wish.id || "")}"><label>书名<input required name="title" value="${escapeHtml(wish.title || "")}" placeholder="例如：乔布斯传"></label><label>作者<input name="author" value="${escapeHtml(wish.author || "")}" placeholder="作者"></label><label>分类<select name="category">${options(state.categories, wish.category || "其他")}</select></label><label>开始阅读日期<input type="date" name="startDate" value="${escapeHtml(wish.startDate || wish.createdAt || today())}"></label><label>来源<input name="source" value="${escapeHtml(wish.source || "")}" placeholder="书店、朋友推荐、微信读书…"></label><label>阅读阶段<select name="status"><option value="wish" selected>未读</option></select></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${wish.id ? "保存修改" : "放进愿望池"}</button></footer></form>`); }
 function openCategoryForm() { openModal("新增分类", `<form data-form="category" class="form-grid"><label>分类名称<input required name="name" placeholder="例如：哲学"></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">添加</button></footer></form>`); }
 function openDailyForm(bookId, card = {}) {
   openModal(card.id ? "编辑每日卡片" : "新增每日卡片", `<form data-form="daily" class="form-grid"><input type="hidden" name="bookId" value="${escapeHtml(bookId)}"><input type="hidden" name="id" value="${escapeHtml(card.id || "")}"><label>日期<input type="date" name="date" value="${escapeHtml(card.date || today())}"></label><label>阅读位置 / 进度<input name="position" value="${escapeHtml(card.position || "")}" placeholder="23/100，之后可写 43"></label><label class="span-2">💎 今日最有意思的一点<textarea required name="insight" placeholder="用一句话留住它。">${escapeHtml(card.insight || "")}</textarea></label><label class="span-2">💭 我的想法<textarea name="thought" placeholder="这让我想到什么？">${escapeHtml(card.thought || "")}</textarea></label><label class="span-2">🔗 联想到什么<textarea name="link" placeholder="人、事、旧笔记，或另一本书。">${escapeHtml(card.link || "")}</textarea></label><footer class="form-actions"><button type="button" class="quiet-button" data-action="close-modal">取消</button><button class="primary-button">${card.id ? "保存修改" : "收下这次阅读"}</button></footer></form>`);
@@ -810,6 +810,8 @@ function onAction(event) {
   if (action === "open-attachment") openStoredAttachment(target.dataset.attachment, target.dataset.preview === "true");
   if (action === "change-cover") openCoverPicker(target.dataset.book);
   if (action === "random-wish") pickRandomWish();
+  if (action === "random-wish-category") pickRandomWishCategory(target.dataset.category);
+  if (action === "open-wish-category") { closeModal(); setRoute({ page: "wishes", wishCategory: target.dataset.category }); }
   if (action === "start-wish") startWish(target.dataset.wish);
 }
 
@@ -850,6 +852,16 @@ function pickRandomWish() {
   if (!state.wishes.length) return;
   const wish = state.wishes[Math.floor(Math.random() * state.wishes.length)];
   openModal("今天读这一本", `<div class="random-pick"><p class="eyebrow">A SMALL READING WINDOW</p><h2>${escapeHtml(wish.title)}</h2><p>${escapeHtml(wish.author || "未署名")} · ${escapeHtml(wish.category || "其他")}</p><p>也许现在正是打开它的时刻。</p><div class="form-actions"><button class="quiet-button" data-action="close-modal">换个时间</button><button class="primary-button" data-action="start-wish" data-wish="${wish.id}">开始阅读</button></div></div>`);
+}
+
+function pickRandomWishCategory(excludedCategory = "") {
+  const grouped = groupBy(state.wishes, (wish) => wish.category || "其他");
+  const categories = Object.keys(grouped).filter((category) => grouped[category].length);
+  if (!categories.length) return;
+  const pool = categories.length > 1 ? categories.filter((category) => category !== excludedCategory) : categories;
+  const category = pool[Math.floor(Math.random() * pool.length)];
+  const count = grouped[category].length;
+  openModal("今天逛这个分类", `<div class="random-pick random-category-pick"><p class="eyebrow">A CATEGORY FOR TODAY</p><div class="random-category-result"><span aria-hidden="true">🎯</span><h2>${escapeHtml(category)}</h2><p>${count} 本书在这里等你挑选</p></div><div class="form-actions"><button class="quiet-button" data-action="random-wish-category" data-category="${escapeHtml(category)}">再抽一次</button><button class="primary-button" data-action="open-wish-category" data-category="${escapeHtml(category)}">去挑一本</button></div></div>`);
 }
 
 function startWish(wishId) {
